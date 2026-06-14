@@ -33,7 +33,7 @@ export type OverpassResponse = {
 
 const amenityLabels: Record<string, string> = {
   restaurant: "レストラン",
-  cafe: "カフェ",
+  cafe: "カフェ・コーヒー",
   fast_food: "ファストフード",
   bar: "バー",
   pub: "居酒屋・パブ",
@@ -46,6 +46,7 @@ const shopLabels: Record<string, string> = {
   delicatessen: "惣菜",
   prepared_food: "惣菜",
   convenience: "コンビニ",
+  supermarket: "スーパー",
   coffee: "カフェ・コーヒー",
   bakery: "パン",
 };
@@ -124,10 +125,13 @@ const queryAliases: Record<string, string[]> = {
   カフェ: ["cafe", "coffee_shop", "coffee"],
   コーヒー: ["coffee", "cafe", "coffee_shop"],
   珈琲: ["coffee", "cafe", "coffee_shop"],
+  コンビニ: ["convenience"],
+  スーパー: ["supermarket"],
+  スーパーマーケット: ["supermarket"],
   スイーツ: ["dessert", "cake", "ice_cream", "cafe", "pastry"],
-  弁当: ["bento", "takeaway", "fast_food", "deli", "meal_takeaway", "lunch"],
-  弁当屋: ["bento", "takeaway", "fast_food", "deli", "meal_takeaway", "lunch"],
-  お弁当: ["bento", "takeaway", "fast_food", "deli", "meal_takeaway", "lunch"],
+  弁当: ["bento", "deli", "takeaway", "fast_food", "japanese"],
+  弁当屋: ["bento", "deli", "takeaway", "fast_food", "japanese"],
+  お弁当: ["bento", "deli", "takeaway", "fast_food", "japanese"],
   惣菜: ["deli", "takeaway", "prepared_food", "delicatessen"],
   デリ: ["deli", "takeaway", "prepared_food", "delicatessen"],
   テイクアウト: ["takeaway", "fast_food", "bento", "deli", "meal_takeaway"],

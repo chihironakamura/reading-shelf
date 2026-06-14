@@ -53,18 +53,27 @@ const searchProfiles: SearchProfile[] = [
   {
     pattern: /(コーヒー|珈琲|coffee)/i,
     filters: [
-      '[shop="coffee"]',
       '[amenity="cafe"]',
-      '[amenity~"^(cafe|restaurant)$"][cuisine~"(coffee|coffee_shop)",i]',
+      '[shop="coffee"]',
+      '[cuisine~"(^|;)coffee(;|$)",i]',
     ],
   },
   {
     pattern: /(弁当|お弁当|惣菜|デリ|テイクアウト|持ち帰り|bento|deli)/i,
     filters: [
       '[shop="deli"]',
-      '[amenity="fast_food"][takeaway~"^(yes|only)$"]',
-      '[amenity~"^(restaurant|fast_food)$"][cuisine~"(bento|deli|takeaway)",i]',
+      '[amenity="fast_food"]',
+      '[takeaway="yes"]',
+      '[cuisine~"(^|;)(bento|japanese)(;|$)",i]',
     ],
+  },
+  {
+    pattern: /(コンビニ|convenience)/i,
+    filters: ['[shop="convenience"]'],
+  },
+  {
+    pattern: /(スーパー|スーパーマーケット|supermarket)/i,
+    filters: ['[shop="supermarket"]'],
   },
   {
     pattern: /(スパイスカレー|スパイス|カレー|curry)/i,
@@ -105,7 +114,7 @@ function overpassQuery(
   const selector: ElementSelector = fallback ? "node" : "nwr";
   const around = `around:${radiusKm * 1000},${latitude},${longitude}`;
   const filters = filtersForQuery(searchQuery);
-  const activeFilters = fallback ? filters.slice(0, 1) : filters.slice(0, 3);
+  const activeFilters = fallback ? filters.slice(0, 1) : filters.slice(0, 4);
   const clauses = activeFilters
     .map((filter) => `${selector}(${around})${filter};`)
     .join("\n      ");

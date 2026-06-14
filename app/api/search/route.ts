@@ -7,6 +7,66 @@ const OVERPASS_ENDPOINTS = [
 ];
 const AMENITIES = "restaurant|cafe|fast_food|bar|pub|food_court";
 
+type AdditionalSearchRule = {
+  pattern: RegExp;
+  clauses: (around: string) => string[];
+};
+
+const additionalSearchRules: AdditionalSearchRule[] = [
+  {
+    pattern: /(弁当|弁当屋|お弁当)/,
+    clauses: (around) => [
+      `nwr(${around})[shop~"^(deli|convenience)$"];`,
+      `nwr(${around})[amenity="fast_food"];`,
+      `nwr(${around})[cuisine~"(bento|lunch|takeaway|meal_takeaway|deli|fast_food)",i];`,
+      `nwr(${around})[name~"(弁当|お弁当|bento|lunch|deli|takeaway)",i];`,
+      `nwr(${around})[takeaway~"^(yes|only)$"];`,
+    ],
+  },
+  {
+    pattern: /(惣菜|デリ)/,
+    clauses: (around) => [
+      `nwr(${around})[shop~"^(deli|delicatessen|prepared_food)$"];`,
+      `nwr(${around})[cuisine~"(deli|takeaway|prepared_food|delicatessen)",i];`,
+      `nwr(${around})[name~"(惣菜|デリ|deli|delicatessen|prepared_food)",i];`,
+      `nwr(${around})[takeaway~"^(yes|only)$"];`,
+    ],
+  },
+  {
+    pattern: /(テイクアウト|持ち帰り)/,
+    clauses: (around) => [
+      `nwr(${around})[shop="deli"];`,
+      `nwr(${around})[amenity="fast_food"];`,
+      `nwr(${around})[cuisine~"(takeaway|fast_food|bento|deli|meal_takeaway)",i];`,
+      `nwr(${around})[takeaway~"^(yes|only)$"];`,
+    ],
+  },
+  {
+    pattern: /(スパイス|スパイスカレー)/,
+    clauses: (around) => [
+      `nwr(${around})[cuisine~"(spice|spices|curry|indian|sri_lankan|nepalese|thai)",i];`,
+      `nwr(${around})[name~"(スパイス|spice|curry|indian|sri.?lankan|nepalese|thai)",i];`,
+    ],
+  },
+  {
+    pattern: /(コーヒー|珈琲)/,
+    clauses: (around) => [
+      `nwr(${around})[amenity="cafe"];`,
+      `nwr(${around})[shop="coffee"];`,
+      `nwr(${around})[cuisine~"(coffee|cafe|coffee_shop)",i];`,
+      `nwr(${around})[name~"(コーヒー|珈琲|coffee|cafe)",i];`,
+    ],
+  },
+  {
+    pattern: /(パン|ベーカリー)/,
+    clauses: (around) => [
+      `nwr(${around})[shop="bakery"];`,
+      `nwr(${around})[cuisine~"(bakery|bread)",i];`,
+      `nwr(${around})[name~"(パン|ベーカリー|bakery|bread)",i];`,
+    ],
+  },
+];
+
 type SearchRequest = {
   query?: unknown;
   radiusKm?: unknown;
@@ -14,9 +74,23 @@ type SearchRequest = {
   longitude?: unknown;
 };
 
-function overpassQuery(latitude: number, longitude: number, radiusMeters: number) {
+function overpassQuery(
+  latitude: number,
+  longitude: number,
+  radiusMeters: number,
+  searchQuery: string,
+) {
+  const around = `around:${radiusMeters},${latitude},${longitude}`;
+  const additionalQueries = additionalSearchRules
+    .filter((rule) => rule.pattern.test(searchQuery))
+    .flatMap((rule) => rule.clauses(around))
+    .join("\n      ");
+
   return `[out:json][timeout:25];
-    nwr(around:${radiusMeters},${latitude},${longitude})[amenity~"^(${AMENITIES})$"];
+    (
+      nwr(around:${radiusMeters},${latitude},${longitude})[amenity~"^(${AMENITIES})$"];
+      ${additionalQueries}
+    );
     out center tags;`;
 }
 
@@ -79,7 +153,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const data = await fetchOverpass(overpassQuery(latitude, longitude, radiusKm * 1000));
+    const data = await fetchOverpass(
+      overpassQuery(latitude, longitude, radiusKm * 1000, query),
+    );
     const restaurants = normalizeOsmRestaurants(
       data.elements ?? [],
       { latitude, longitude },

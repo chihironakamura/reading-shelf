@@ -1,26 +1,133 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@theme {
+  --color-ink: #18332d;
+  --color-forest: #205b4b;
+  --color-leaf: #2f7d65;
+  --color-cream: #f7f4ec;
+  --color-coral: #ef7557;
+  --shadow-card: 0 18px 50px rgba(31, 74, 62, 0.1);
+}
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  background: #f7f4ec;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  overflow-x: hidden;
+  color: #18332d;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(239, 117, 87, 0.12), transparent 30rem),
+    radial-gradient(circle at 0% 24%, rgba(47, 125, 101, 0.09), transparent 26rem),
+    #f7f4ec;
+  font-family: "Hiragino Sans", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+input {
+  font-size: 16px;
+  min-width: 0;
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+::selection {
+  color: white;
+  background: #2f7d65;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.result-card {
+  animation: rise 420ms ease-out both;
+}
+
+.restaurant-map-marker {
+  background: transparent;
+  border: 0;
+}
+
+.restaurant-map-marker span {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 3px solid white;
+  border-radius: 50% 50% 50% 8px;
+  color: white;
+  background: #ef7557;
+  box-shadow: 0 5px 14px rgba(24, 51, 45, 0.3);
+  font-size: 13px;
+  font-weight: 900;
+  transform: rotate(-45deg);
+}
+
+.restaurant-map-marker b {
+  display: block;
+  font: inherit;
+  transform: rotate(45deg);
+}
+
+.restaurant-map-popup {
+  display: grid;
+  gap: 3px;
+  color: #18332d;
+  font-family: "Hiragino Sans", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+}
+
+.restaurant-map-popup strong {
+  font-size: 14px;
+}
+
+.restaurant-map-popup span {
+  color: #2f7d65;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .result-card {
+    animation: none;
+  }
 }

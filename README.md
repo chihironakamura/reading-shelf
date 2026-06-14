@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 今日のごはん
 
-## Getting Started
+「食べたいものが決まってても、決まってなくても。」をコンセプトにした、スマホ向けの近隣飲食店検索PWAです。
 
-First, run the development server:
+料理名から直接検索できるほか、気分・予算・歩ける距離について答えると、アプリ内のルールベース推薦が料理ジャンルを3つ提案します。
+
+## 使用技術
+
+- Next.js / TypeScript
+- Tailwind CSS
+- ブラウザのGeolocation API
+- OpenStreetMap / Overpass API
+- PWA（Web App Manifest / Service Worker）
+
+このMVPは無料で利用できる技術だけで構成しています。APIキーや有料の外部AI APIは必要ありません。
+
+## 起動方法
+
+Node.js 20以降を用意して、次のコマンドを実行します。
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+ブラウザで [http://localhost:3000](http://localhost:3000) を開きます。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## ポート3001で起動する方法
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run dev -- -p 3001
+```
 
-## Learn More
+ブラウザで [http://localhost:3001](http://localhost:3001) を開きます。
 
-To learn more about Next.js, take a look at the following resources:
+## 使い方
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. 「現在地を取得」を押して、ブラウザの位置情報利用を許可します。
+2. 食べたい料理を入力するか、「決められないからおすすめしてもらう」から3つの質問に答えます。
+3. 検索半径を選び、「近くのお店を探す」を押します。
+4. 距離順に表示された店舗カードから、OpenStreetMapの店舗ページを開けます。
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+料理名を空欄にした場合は、指定範囲内の飲食店をまとめて検索します。
 
-## Deploy on Vercel
+## 無料版で利用できない情報
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+OpenStreetMapにはGoogle評価や口コミ数のデータはありません。そのため、この無料版では評価・口コミ数・人気順・営業中判定は表示せず、現在地からの距離が近い順に並べます。
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Overpass APIは公開の無料サービスです。混雑時には検索に時間がかかったり、一時的に取得できなかったりする場合があります。また、店舗情報はOpenStreetMapへの登録状況に左右されます。
+
+## 将来的な拡張
+
+- OpenAI APIやGemini APIを追加し、会話形式の本格的なAI提案にする
+- Google Places APIを追加し、Google評価・口コミ数・営業時間を使った高評価順検索にする
+- 営業時間、価格帯、食事制限などの絞り込み
+- お気に入りや検索履歴の端末内保存
+
+これらの外部APIを追加する場合は、APIキーの管理と利用料金への配慮が必要です。
+
+## PWAについて
+
+対応ブラウザではホーム画面に追加できます。iPhoneではSafariの共有メニューから「ホーム画面に追加」を選択してください。本番環境で位置情報とPWAを利用するにはHTTPS配信が必要です。
+
+店舗データ: © OpenStreetMap contributors

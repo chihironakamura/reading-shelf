@@ -14,6 +14,15 @@ const REQUEST_TIMEOUT_MS = 7_000;
 const RESULT_LIMIT = 80;
 const FALLBACK_RESULT_LIMIT = 40;
 const ENOUGH_RESULTS = 8;
+const BENTO_SEARCH_PATTERN = /(弁当|お弁当|弁当屋|bento)/i;
+const BENTO_PROFILE_PATTERN = /(弁当|お弁当|弁当屋|惣菜|デリ|テイクアウト|持ち帰り|bento|deli)/i;
+const BENTO_ADDITIONAL_FILTERS = [
+  '[shop="deli"]',
+  '[takeaway="yes"]',
+  '[amenity="fast_food"]',
+  '[shop="supermarket"]',
+  '[shop="convenience"]',
+];
 
 type SearchRequest = {
   query?: unknown;
@@ -59,13 +68,8 @@ const searchProfiles: SearchProfile[] = [
     ],
   },
   {
-    pattern: /(弁当|お弁当|惣菜|デリ|テイクアウト|持ち帰り|bento|deli)/i,
-    filters: [
-      '[shop="deli"]',
-      '[amenity="fast_food"]',
-      '[takeaway="yes"]',
-      '[cuisine~"(^|;)(bento|japanese)(;|$)",i]',
-    ],
+    pattern: BENTO_PROFILE_PATTERN,
+    filters: ['[cuisine~"(^|;)(bento|japanese)(;|$)",i]'],
   },
   {
     pattern: /(コンビニ|convenience)/i,
@@ -167,6 +171,40 @@ async function searchRadius(
   }
 }
 
+async function addBentoCandidates(
+  elements: OverpassElement[],
+  latitude: number,
+  longitude: number,
+  radiusKm: number,
+  query: string,
+) {
+  let mergedElements = elements;
+
+  for (const [filterIndex, filter] of BENTO_ADDITIONAL_FILTERS.entries()) {
+    const currentResults = normalizeOsmRestaurants(
+      mergedElements,
+      { latitude, longitude },
+      query,
+    ).filter((restaurant) => restaurant.distanceKm <= radiusKm);
+    if (currentResults.length >= ENOUGH_RESULTS) break;
+
+    const endpoint = OVERPASS_ENDPOINTS[filterIndex % OVERPASS_ENDPOINTS.length];
+    const around = `around:${radiusKm * 1000},${latitude},${longitude}`;
+    const expansionQuery = `[out:json][timeout:${OVERPASS_TIMEOUT_SECONDS}];
+      nwr(${around})${filter};
+      out center tags ${FALLBACK_RESULT_LIMIT};`;
+
+    try {
+      const data = await fetchOverpass(expansionQuery, endpoint);
+      mergedElements = mergeElements(mergedElements, data.elements ?? []);
+    } catch (error) {
+      console.warn(`Bento expansion ${filterIndex + 1} failed`, error);
+    }
+  }
+
+  return mergedElements;
+}
+
 function mergeElements(current: OverpassElement[], incoming: OverpassElement[]) {
   const elements = new Map(current.map((element) => [`${element.type}/${element.id}`, element]));
   for (const element of incoming) elements.set(`${element.type}/${element.id}`, element);
@@ -213,6 +251,12 @@ export async function POST(request: Request) {
         .filter((restaurant) => restaurant.distanceKm <= radiusKm);
 
       if (restaurants.length >= ENOUGH_RESULTS || stageRadiusKm === radiusKm) {
+        if (BENTO_SEARCH_PATTERN.test(query) && restaurants.length < ENOUGH_RESULTS) {
+          elements = await addBentoCandidates(elements, latitude, longitude, radiusKm, query);
+          const expandedRestaurants = normalizeOsmRestaurants(elements, origin, query)
+            .filter((restaurant) => restaurant.distanceKm <= radiusKm);
+          return NextResponse.json({ restaurants: expandedRestaurants });
+        }
         return NextResponse.json({ restaurants });
       }
     } catch (error) {

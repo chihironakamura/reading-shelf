@@ -129,9 +129,9 @@ const queryAliases: Record<string, string[]> = {
   スーパー: ["supermarket"],
   スーパーマーケット: ["supermarket"],
   スイーツ: ["dessert", "cake", "ice_cream", "cafe", "pastry"],
-  弁当: ["bento", "deli", "takeaway", "fast_food", "japanese"],
-  弁当屋: ["bento", "deli", "takeaway", "fast_food", "japanese"],
-  お弁当: ["bento", "deli", "takeaway", "fast_food", "japanese"],
+  弁当: ["bento", "deli", "takeaway", "fast_food", "supermarket", "convenience"],
+  弁当屋: ["bento", "deli", "takeaway", "fast_food", "supermarket", "convenience"],
+  お弁当: ["bento", "deli", "takeaway", "fast_food", "supermarket", "convenience"],
   惣菜: ["deli", "takeaway", "prepared_food", "delicatessen"],
   デリ: ["deli", "takeaway", "prepared_food", "delicatessen"],
   テイクアウト: ["takeaway", "fast_food", "bento", "deli", "meal_takeaway"],
@@ -209,10 +209,15 @@ function restaurantMatchScore(tags: OsmTags, query: string) {
     fieldMatchScore(tags.brand, normalizedQuery, terms, 128, 108),
     fieldMatchScore(tags.operator, normalizedQuery, terms, 120, 100),
   );
-  const cuisineScore = fieldMatchScore(tags.cuisine, normalizedQuery, terms, 64, 52);
+  const isBentoSearch = /(弁当|お弁当|弁当屋|bento)/i.test(query);
+  const cuisineScore = Math.max(
+    fieldMatchScore(tags.cuisine, normalizedQuery, terms, 64, 52),
+    isBentoSearch && tags.cuisine?.split(";").includes("japanese") ? 36 : 0,
+  );
   const categoryScore = Math.max(
     fieldMatchScore(tags.amenity, normalizedQuery, terms, 38, 32),
     fieldMatchScore(tags.shop, normalizedQuery, terms, 38, 32),
+    isBentoSearch && ["supermarket", "convenience"].includes(tags.shop ?? "") ? 32 : 0,
   );
   const takeawayValue = tags.takeaway === "yes" || tags.takeaway === "only"
     ? "takeaway meal_takeaway テイクアウト 持ち帰り"
@@ -272,7 +277,15 @@ function restaurantName(tags: OsmTags, amenity: string, cuisine: string, shop: s
   );
 }
 
-function genreLabel(tags: OsmTags, amenity: string, cuisine: string, shop: string) {
+function genreLabel(tags: OsmTags, amenity: string, cuisine: string, shop: string, query: string) {
+  if (/(弁当|お弁当|弁当屋|bento)/i.test(query)) {
+    const cuisineValues = tags.cuisine?.split(";").map((value) => value.trim()) ?? [];
+    if (cuisineValues.includes("bento") || cuisineValues.includes("japanese")) return "弁当";
+    if (shop === "deli") return "惣菜";
+    if (shop === "supermarket") return "スーパー";
+    if (shop === "convenience") return "コンビニ";
+    if (tags.takeaway === "yes" || amenity === "fast_food") return "テイクアウト";
+  }
   if (cuisine) return cuisine;
   if (shopLabels[shop]) return shopLabels[shop];
   if (tags.takeaway === "yes" || tags.takeaway === "only") return "テイクアウト";
@@ -309,7 +322,7 @@ export function normalizeOsmRestaurants(
         restaurant: {
           id,
           name: restaurantName(tags, amenity, cuisine, shop),
-          genre: genreLabel(tags, amenity, cuisine, shop),
+          genre: genreLabel(tags, amenity, cuisine, shop, query),
           cuisine,
           amenity,
           formattedAddress: addressFromTags(tags),

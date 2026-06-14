@@ -33,7 +33,25 @@ import {
 　recommendFromYesterday,
 } from "@/lib/recommendations";
 
-const examples = ["ラーメン", "焼肉", "カレー", "寿司", "カフェ"];
+const examples = [
+  "ラーメン",
+  "焼肉",
+  "カレー",
+  "寿司",
+  "カフェ",
+  "和食",
+  "中華",
+  "イタリアン",
+  "居酒屋",
+  "焼鳥",
+  "うどん",
+  "そば",
+  "定食",
+  "韓国料理",
+  "ハンバーガー",
+  "ステーキ",
+  "スイーツ",
+];
 const radii = [1, 3, 5] as const;
 
 const moodOptions: { value: Mood; label: string }[] = [
@@ -301,7 +319,7 @@ function updateRecentMeal(index: number, value: string) {
           />
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2" aria-label="入力例">
+        <div className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6" aria-label="人気ジャンル">
           {examples.map((example) => (
             <button key={example} type="button" onClick={() => setQuery(example)} className="min-h-11 shrink-0 rounded-full bg-cream px-4 py-2 text-sm font-bold text-forest transition active:scale-95 active:bg-forest active:text-white">
               {example}

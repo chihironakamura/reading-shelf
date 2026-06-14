@@ -5,67 +5,10 @@ const OVERPASS_ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
 ];
-const AMENITIES = "restaurant|cafe|fast_food|bar|pub|food_court";
-
-type AdditionalSearchRule = {
-  pattern: RegExp;
-  clauses: (around: string) => string[];
-};
-
-const additionalSearchRules: AdditionalSearchRule[] = [
-  {
-    pattern: /(弁当|弁当屋|お弁当)/,
-    clauses: (around) => [
-      `nwr(${around})[shop~"^(deli|convenience)$"];`,
-      `nwr(${around})[amenity="fast_food"];`,
-      `nwr(${around})[cuisine~"(bento|lunch|takeaway|meal_takeaway|deli|fast_food)",i];`,
-      `nwr(${around})[name~"(弁当|お弁当|bento|lunch|deli|takeaway)",i];`,
-      `nwr(${around})[takeaway~"^(yes|only)$"];`,
-    ],
-  },
-  {
-    pattern: /(惣菜|デリ)/,
-    clauses: (around) => [
-      `nwr(${around})[shop~"^(deli|delicatessen|prepared_food)$"];`,
-      `nwr(${around})[cuisine~"(deli|takeaway|prepared_food|delicatessen)",i];`,
-      `nwr(${around})[name~"(惣菜|デリ|deli|delicatessen|prepared_food)",i];`,
-      `nwr(${around})[takeaway~"^(yes|only)$"];`,
-    ],
-  },
-  {
-    pattern: /(テイクアウト|持ち帰り)/,
-    clauses: (around) => [
-      `nwr(${around})[shop="deli"];`,
-      `nwr(${around})[amenity="fast_food"];`,
-      `nwr(${around})[cuisine~"(takeaway|fast_food|bento|deli|meal_takeaway)",i];`,
-      `nwr(${around})[takeaway~"^(yes|only)$"];`,
-    ],
-  },
-  {
-    pattern: /(スパイス|スパイスカレー)/,
-    clauses: (around) => [
-      `nwr(${around})[cuisine~"(spice|spices|curry|indian|sri_lankan|nepalese|thai)",i];`,
-      `nwr(${around})[name~"(スパイス|spice|curry|indian|sri.?lankan|nepalese|thai)",i];`,
-    ],
-  },
-  {
-    pattern: /(コーヒー|珈琲)/,
-    clauses: (around) => [
-      `nwr(${around})[amenity="cafe"];`,
-      `nwr(${around})[shop="coffee"];`,
-      `nwr(${around})[cuisine~"(coffee|cafe|coffee_shop)",i];`,
-      `nwr(${around})[name~"(コーヒー|珈琲|coffee|cafe)",i];`,
-    ],
-  },
-  {
-    pattern: /(パン|ベーカリー)/,
-    clauses: (around) => [
-      `nwr(${around})[shop="bakery"];`,
-      `nwr(${around})[cuisine~"(bakery|bread)",i];`,
-      `nwr(${around})[name~"(パン|ベーカリー|bakery|bread)",i];`,
-    ],
-  },
-];
+const OVERPASS_TIMEOUT_SECONDS = 8;
+const REQUEST_TIMEOUT_MS = 10_000;
+const PRIMARY_RESULT_LIMIT = 120;
+const FALLBACK_RESULT_LIMIT = 60;
 
 type SearchRequest = {
   query?: unknown;
@@ -74,24 +17,105 @@ type SearchRequest = {
   longitude?: unknown;
 };
 
+type ElementSelector = "nwr" | "node";
+
+type SearchProfile = {
+  pattern: RegExp;
+  clauses: (selector: ElementSelector, around: string) => string[];
+};
+
+function clause(selector: ElementSelector, around: string, filters: string) {
+  return `${selector}(${around})${filters};`;
+}
+
+const searchProfiles: SearchProfile[] = [
+  {
+    pattern: /(ラーメン|らーめん|中華そば|ramen)/i,
+    clauses: (selector, around) => [
+      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][cuisine~"(^|;)(ramen|noodle|noodles)(;|$)",i]'),
+      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][name~"(ラーメン|らーめん|中華そば|ramen)",i]'),
+    ],
+  },
+  {
+    pattern: /(焼肉|やきにく|yakiniku|bbq|barbecue)/i,
+    clauses: (selector, around) => [
+      clause(selector, around, '[amenity="restaurant"][cuisine~"(^|;)(yakiniku|bbq|barbecue|korean)(;|$)",i]'),
+      clause(selector, around, '[amenity="restaurant"][name~"(焼肉|やきにく|yakiniku)",i]'),
+    ],
+  },
+  {
+    pattern: /(スパイスカレー|スパイス|カレー|curry)/i,
+    clauses: (selector, around) => [
+      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][cuisine~"(^|;)(curry|indian|nepalese|sri_lankan)(;|$)",i]'),
+      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][name~"(スパイスカレー|カレー|curry)",i]'),
+    ],
+  },
+  {
+    pattern: /(寿司|鮨|すし|sushi)/i,
+    clauses: (selector, around) => [
+      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][cuisine~"(^|;)sushi(;|$)",i]'),
+      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][name~"(寿司|鮨|すし|sushi)",i]'),
+    ],
+  },
+  {
+    pattern: /(カフェ|コーヒー|珈琲|cafe|coffee)/i,
+    clauses: (selector, around) => [
+      clause(selector, around, '[amenity="cafe"]'),
+      clause(selector, around, '[shop="coffee"]'),
+      clause(selector, around, '[amenity="restaurant"][cuisine~"(^|;)(coffee|coffee_shop|cafe)(;|$)",i]'),
+    ],
+  },
+  {
+    pattern: /(弁当|お弁当|惣菜|デリ|テイクアウト|持ち帰り|bento|deli)/i,
+    clauses: (selector, around) => [
+      clause(selector, around, '[shop="deli"]'),
+      clause(selector, around, '[amenity="fast_food"]'),
+      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][cuisine~"(^|;)(bento|deli|takeaway)(;|$)",i]'),
+      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][name~"(弁当|お弁当|惣菜|デリ|bento|deli)",i]'),
+    ],
+  },
+  {
+    pattern: /(パン|ベーカリー|bakery|bread)/i,
+    clauses: (selector, around) => [
+      clause(selector, around, '[shop="bakery"]'),
+      clause(selector, around, '[shop="bakery"][name~"(パン|ベーカリー|bakery)",i]'),
+    ],
+  },
+];
+
+function coreClauses(selector: ElementSelector, around: string) {
+  return [
+    clause(selector, around, '[amenity="restaurant"]'),
+    clause(selector, around, '[amenity="cafe"]'),
+    clause(selector, around, '[amenity="fast_food"]'),
+    clause(selector, around, '[shop="coffee"]'),
+    clause(selector, around, '[shop="bakery"]'),
+    clause(selector, around, '[shop="deli"]'),
+  ];
+}
+
+function clausesForQuery(searchQuery: string, selector: ElementSelector, around: string) {
+  const profile = searchProfiles.find((candidate) => candidate.pattern.test(searchQuery));
+  return profile ? profile.clauses(selector, around).slice(0, 5) : coreClauses(selector, around);
+}
+
 function overpassQuery(
   latitude: number,
   longitude: number,
   radiusMeters: number,
   searchQuery: string,
+  fallback = false,
 ) {
   const around = `around:${radiusMeters},${latitude},${longitude}`;
-  const additionalQueries = additionalSearchRules
-    .filter((rule) => rule.pattern.test(searchQuery))
-    .flatMap((rule) => rule.clauses(around))
-    .join("\n      ");
+  const selector = fallback ? "node" : "nwr";
+  const limit = fallback ? FALLBACK_RESULT_LIMIT : PRIMARY_RESULT_LIMIT;
+  const clauses = clausesForQuery(searchQuery, selector, around).join("\n      ");
 
-  return `[out:json][timeout:25];
+  return `[out:json][timeout:${OVERPASS_TIMEOUT_SECONDS}];
     (
-      nwr(around:${radiusMeters},${latitude},${longitude})[amenity~"^(${AMENITIES})$"];
-      ${additionalQueries}
+      ${clauses}
     );
-    out center tags;`;
+    out center tags ${limit};`;
 }
 
 async function fetchOverpass(query: string) {
@@ -107,7 +131,7 @@ async function fetchOverpass(query: string) {
         },
         body: new URLSearchParams({ data: query }),
         cache: "no-store",
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
 
       if (!response.ok) {
@@ -122,6 +146,20 @@ async function fetchOverpass(query: string) {
   }
 
   throw lastError ?? new Error("Overpass API request failed");
+}
+
+async function searchOverpass(
+  latitude: number,
+  longitude: number,
+  radiusMeters: number,
+  searchQuery: string,
+) {
+  try {
+    return await fetchOverpass(overpassQuery(latitude, longitude, radiusMeters, searchQuery));
+  } catch (primaryError) {
+    console.warn("Primary Overpass request failed; trying fallback", primaryError);
+    return fetchOverpass(overpassQuery(latitude, longitude, radiusMeters, searchQuery, true));
+  }
 }
 
 export async function POST(request: Request) {
@@ -153,9 +191,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const data = await fetchOverpass(
-      overpassQuery(latitude, longitude, radiusKm * 1000, query),
-    );
+    const data = await searchOverpass(latitude, longitude, radiusKm * 1000, query);
     const restaurants = normalizeOsmRestaurants(
       data.elements ?? [],
       { latitude, longitude },
@@ -164,9 +200,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ restaurants });
   } catch (error) {
-    console.error("Overpass request failed", error);
+    console.error("Overpass request failed after fallback", error);
     return NextResponse.json(
-      { error: "お店情報を取得できませんでした。少し待ってから、もう一度お試しください。" },
+      { error: "検索が混み合っています。条件を変えてもう一度お試しください" },
       { status: 502 },
     );
   }

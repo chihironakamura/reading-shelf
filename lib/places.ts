@@ -168,7 +168,7 @@ function queryTerms(query: string) {
     normalizedQuery.includes(normalize(label)) ? terms : [],
   );
 
-  return [...new Set([query, ...aliases].map(normalize).filter(Boolean))];
+  return [...new Set([query, ...aliases].map(normalize).filter(Boolean))].slice(0, 6);
 }
 
 function matchesQuery(tags: OsmTags, query: string) {

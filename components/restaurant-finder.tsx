@@ -18,7 +18,7 @@ import {
   Utensils,
   X,
 } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import LeafletMap from "@/components/LeafletMap";
 import type { Coordinates, Restaurant } from "@/lib/places";
 import {
@@ -86,7 +86,9 @@ export function RestaurantFinder() {
   const [radiusKm, setRadiusKm] = useState<(typeof radii)[number]>(3);
   const [coordinates, setCoordinates] = useState<Coordinates | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [initialLocationCheck, setInitialLocationCheck] = useState(true);
   const [locationError, setLocationError] = useState("");
+  const autoLocationAttempted = useRef(false);
   const [requestState, setRequestState] = useState<RequestState>("idle");
   const [error, setError] = useState("");
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -178,10 +180,13 @@ const homeRecipes = useMemo(
   }
 
   function getCurrentLocation() {
+    if (coordinates || locationLoading) return;
+
     setLocationError("");
 
     if (!navigator.geolocation) {
       setLocationError("この端末では現在地を取得できません。");
+      setInitialLocationCheck(false);
       return;
     }
 
@@ -190,15 +195,24 @@ const homeRecipes = useMemo(
       ({ coords }) => {
         setCoordinates({ latitude: coords.latitude, longitude: coords.longitude });
         setLocationLoading(false);
+        setInitialLocationCheck(false);
       },
       () => {
         setCoordinates(null);
         setLocationError("現在地を取得できませんでした。ブラウザの位置情報を許可して、もう一度お試しください。");
         setLocationLoading(false);
+        setInitialLocationCheck(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
     );
   }
+
+  useEffect(() => {
+    if (autoLocationAttempted.current || coordinates || locationLoading) return;
+
+    autoLocationAttempted.current = true;
+    getCurrentLocation();
+  }, []);
 
 function updateRecentMeal(index: number, value: string) {
   setRecentMeals((currentMeals) =>
@@ -341,7 +355,13 @@ function updateRecentMeal(index: number, value: string) {
 
         <button type="button" onClick={getCurrentLocation} disabled={locationLoading} className="mt-5 flex h-14 w-full items-center justify-center gap-2 rounded-2xl border border-forest/20 bg-white text-base font-black text-forest transition active:scale-[0.99] active:bg-cream disabled:cursor-wait disabled:opacity-70">
           {locationLoading ? <LoaderCircle className="size-5 animate-spin" /> : coordinates ? <Check className="size-5" /> : <LocateFixed className="size-5" />}
-          {locationLoading ? "現在地を取得中..." : coordinates ? "現在地を取得しました" : "現在地を取得"}
+          {locationLoading
+            ? initialLocationCheck
+              ? "現在地を確認しています..."
+              : "現在地を取得中..."
+            : coordinates
+              ? "現在地を取得しました"
+              : "現在地を取得"}
         </button>
 
         <button

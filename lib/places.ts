@@ -171,31 +171,51 @@ function queryTerms(query: string) {
   return [...new Set([query, ...aliases].map(normalize).filter(Boolean))].slice(0, 6);
 }
 
-function matchesQuery(tags: OsmTags, query: string) {
-  if (!query.trim()) return true;
+function fieldMatchScore(
+  value: string | undefined,
+  normalizedQuery: string,
+  terms: string[],
+  exactScore: number,
+  partialScore: number,
+) {
+  const normalizedValue = normalize(value ?? "");
+  if (!normalizedValue) return 0;
+  if (normalizedValue === normalizedQuery) return exactScore;
+  if (
+    normalizedValue.includes(normalizedQuery) ||
+    (normalizedValue.length >= 2 && normalizedQuery.includes(normalizedValue))
+  ) {
+    return partialScore;
+  }
+  if (terms.some((term) => normalizedValue === term)) return partialScore - 8;
+  if (terms.some((term) => normalizedValue.includes(term) || term.includes(normalizedValue))) {
+    return partialScore - 16;
+  }
+  return 0;
+}
 
-  const takeawayTerms = tags.takeaway === "yes" || tags.takeaway === "only"
-    ? "takeaway meal_takeaway テイクアウト"
-    : "";
-  const searchable = normalize(
-    [
-      tags.name,
-      tags["name:ja"],
-      tags.brand,
-      tags.operator,
-      tags.official_name,
-      tags.cuisine,
-      tags.amenity,
-      tags.shop,
-      tags.takeaway,
-      tags.description,
-      takeawayTerms,
-    ]
-      .filter(Boolean)
-      .join(" "),
+function restaurantMatchScore(tags: OsmTags, query: string) {
+  if (!query.trim()) return 0;
+
+  const normalizedQuery = normalize(query);
+  const terms = queryTerms(query);
+  const nameScore = Math.max(
+    fieldMatchScore(tags.name, normalizedQuery, terms, 140, 120),
+    fieldMatchScore(tags["name:ja"], normalizedQuery, terms, 136, 116),
+    fieldMatchScore(tags.brand, normalizedQuery, terms, 128, 108),
+    fieldMatchScore(tags.operator, normalizedQuery, terms, 120, 100),
   );
+  const cuisineScore = fieldMatchScore(tags.cuisine, normalizedQuery, terms, 64, 52);
+  const categoryScore = Math.max(
+    fieldMatchScore(tags.amenity, normalizedQuery, terms, 38, 32),
+    fieldMatchScore(tags.shop, normalizedQuery, terms, 38, 32),
+  );
+  const takeawayValue = tags.takeaway === "yes" || tags.takeaway === "only"
+    ? "takeaway meal_takeaway テイクアウト 持ち帰り"
+    : tags.takeaway;
+  const takeawayScore = fieldMatchScore(takeawayValue, normalizedQuery, terms, 28, 24);
 
-  return queryTerms(query).some((term) => searchable.includes(term));
+  return nameScore + cuisineScore + categoryScore + takeawayScore;
 }
 
 function addressFromTags(tags: OsmTags) {
@@ -267,7 +287,10 @@ export function normalizeOsmRestaurants(
       const tags = element.tags ?? {};
       const latitude = element.lat ?? element.center?.lat;
       const longitude = element.lon ?? element.center?.lon;
-      if (latitude === undefined || longitude === undefined || !matchesQuery(tags, query)) return [];
+      if (latitude === undefined || longitude === undefined) return [];
+
+      const matchScore = restaurantMatchScore(tags, query);
+      if (query.trim() && matchScore === 0) return [];
 
       const id = `${element.type}/${element.id}`;
       if (seen.has(id)) return [];
@@ -278,18 +301,22 @@ export function normalizeOsmRestaurants(
       const cuisine = cuisineLabel(tags.cuisine);
 
       return [{
-        id,
-        name: restaurantName(tags, amenity, cuisine, shop),
-        genre: genreLabel(tags, amenity, cuisine, shop),
-        cuisine,
-        amenity,
-        formattedAddress: addressFromTags(tags),
-        latitude,
-        longitude,
-        distanceKm: distanceInKm(origin, { latitude, longitude }),
-        osmUri: `https://www.openstreetmap.org/${element.type}/${element.id}`,
+        matchScore,
+        restaurant: {
+          id,
+          name: restaurantName(tags, amenity, cuisine, shop),
+          genre: genreLabel(tags, amenity, cuisine, shop),
+          cuisine,
+          amenity,
+          formattedAddress: addressFromTags(tags),
+          latitude,
+          longitude,
+          distanceKm: distanceInKm(origin, { latitude, longitude }),
+          osmUri: `https://www.openstreetmap.org/${element.type}/${element.id}`,
+        },
       }];
     })
-    .sort((a, b) => a.distanceKm - b.distanceKm)
-    .slice(0, 50);
+    .sort((a, b) => b.matchScore - a.matchScore || a.restaurant.distanceKm - b.restaurant.distanceKm)
+    .slice(0, 50)
+    .map(({ restaurant }) => restaurant);
 }

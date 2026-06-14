@@ -653,7 +653,7 @@ function updateRecentMeal(index: number, value: string) {
                 <h2 className="mt-1 break-words text-xl font-black tracking-tight sm:text-2xl">「{searchedQuery}」の検索結果</h2>
               </div>
               <div className="shrink-0 text-right">
-                <p className="rounded-full bg-forest px-3 py-1.5 text-xs font-black text-white">近い順</p>
+                <p className="rounded-full bg-forest px-3 py-1.5 text-xs font-black text-white">おすすめ順</p>
                 <p className="mt-1 text-xs font-bold text-ink/45">{restaurants.length}件</p>
               </div>
             </div>
@@ -678,7 +678,7 @@ function updateRecentMeal(index: number, value: string) {
                   <div className="flex items-start gap-4">
                     <div className={`grid size-11 shrink-0 place-items-center rounded-xl text-sm font-black ${index < 3 ? "bg-forest text-white" : "bg-cream text-forest"}`}>{index + 1}</div>
                     <div className="min-w-0 flex-1">
-                      <p className="mb-1 text-[10px] font-black tracking-[0.1em] text-leaf">近い順 {index + 1}番目</p>
+                      <p className="mb-1 text-[10px] font-black tracking-[0.1em] text-leaf">おすすめ {index + 1}番目</p>
                       <h3 className="break-words text-lg font-black leading-6 text-ink sm:text-xl">{restaurant.name}</h3>
                       <span className="mt-3 inline-flex rounded-full bg-[#fff1c9] px-3 py-1.5 text-xs font-black text-[#7a5410]">{restaurant.genre}</span>
                     </div>

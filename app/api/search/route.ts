@@ -7,8 +7,8 @@ const OVERPASS_ENDPOINTS = [
 ];
 const OVERPASS_TIMEOUT_SECONDS = 8;
 const REQUEST_TIMEOUT_MS = 10_000;
-const PRIMARY_RESULT_LIMIT = 120;
-const FALLBACK_RESULT_LIMIT = 60;
+const PRIMARY_RESULT_LIMIT = 180;
+const FALLBACK_RESULT_LIMIT = 80;
 
 type SearchRequest = {
   query?: unknown;
@@ -21,7 +21,7 @@ type ElementSelector = "nwr" | "node";
 
 type SearchProfile = {
   pattern: RegExp;
-  clauses: (selector: ElementSelector, around: string) => string[];
+  clause: (selector: ElementSelector, around: string) => string;
 };
 
 function clause(selector: ElementSelector, around: string, filters: string) {
@@ -31,72 +31,67 @@ function clause(selector: ElementSelector, around: string, filters: string) {
 const searchProfiles: SearchProfile[] = [
   {
     pattern: /(ラーメン|らーめん|中華そば|ramen)/i,
-    clauses: (selector, around) => [
-      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][cuisine~"(^|;)(ramen|noodle|noodles)(;|$)",i]'),
-      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][name~"(ラーメン|らーめん|中華そば|ramen)",i]'),
-    ],
+    clause: (selector, around) =>
+      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][cuisine~"(ramen|noodle|noodles)",i]'),
   },
   {
     pattern: /(焼肉|やきにく|yakiniku|bbq|barbecue)/i,
-    clauses: (selector, around) => [
-      clause(selector, around, '[amenity="restaurant"][cuisine~"(^|;)(yakiniku|bbq|barbecue|korean)(;|$)",i]'),
-      clause(selector, around, '[amenity="restaurant"][name~"(焼肉|やきにく|yakiniku)",i]'),
-    ],
+    clause: (selector, around) =>
+      clause(selector, around, '[amenity="restaurant"][cuisine~"(yakiniku|bbq|barbecue|korean)",i]'),
   },
   {
     pattern: /(スパイスカレー|スパイス|カレー|curry)/i,
-    clauses: (selector, around) => [
-      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][cuisine~"(^|;)(curry|indian|nepalese|sri_lankan)(;|$)",i]'),
-      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][name~"(スパイスカレー|カレー|curry)",i]'),
-    ],
+    clause: (selector, around) =>
+      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][cuisine~"(curry|indian|nepalese|sri_lankan)",i]'),
   },
   {
     pattern: /(寿司|鮨|すし|sushi)/i,
-    clauses: (selector, around) => [
-      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][cuisine~"(^|;)sushi(;|$)",i]'),
-      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][name~"(寿司|鮨|すし|sushi)",i]'),
-    ],
+    clause: (selector, around) =>
+      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][cuisine~"sushi",i]'),
   },
   {
     pattern: /(カフェ|コーヒー|珈琲|cafe|coffee)/i,
-    clauses: (selector, around) => [
-      clause(selector, around, '[amenity="cafe"]'),
-      clause(selector, around, '[shop="coffee"]'),
-      clause(selector, around, '[amenity="restaurant"][cuisine~"(^|;)(coffee|coffee_shop|cafe)(;|$)",i]'),
-    ],
+    clause: (selector, around) =>
+      clause(selector, around, '[amenity="restaurant"][cuisine~"(coffee|coffee_shop|cafe)",i]'),
   },
   {
     pattern: /(弁当|お弁当|惣菜|デリ|テイクアウト|持ち帰り|bento|deli)/i,
-    clauses: (selector, around) => [
-      clause(selector, around, '[shop="deli"]'),
-      clause(selector, around, '[amenity="fast_food"]'),
-      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][cuisine~"(^|;)(bento|deli|takeaway)(;|$)",i]'),
-      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][name~"(弁当|お弁当|惣菜|デリ|bento|deli)",i]'),
-    ],
+    clause: (selector, around) =>
+      clause(selector, around, '[amenity~"^(restaurant|fast_food)$"][cuisine~"(bento|deli|takeaway)",i]'),
   },
   {
     pattern: /(パン|ベーカリー|bakery|bread)/i,
-    clauses: (selector, around) => [
-      clause(selector, around, '[shop="bakery"]'),
-      clause(selector, around, '[shop="bakery"][name~"(パン|ベーカリー|bakery)",i]'),
-    ],
+    clause: (selector, around) => clause(selector, around, '[shop="bakery"]'),
   },
 ];
 
 function coreClauses(selector: ElementSelector, around: string) {
   return [
-    clause(selector, around, '[amenity="restaurant"]'),
-    clause(selector, around, '[amenity="cafe"]'),
-    clause(selector, around, '[amenity="fast_food"]'),
-    clause(selector, around, '[shop="coffee"]'),
-    clause(selector, around, '[shop="bakery"]'),
-    clause(selector, around, '[shop="deli"]'),
+    clause(selector, around, '[amenity~"^(restaurant|cafe|fast_food)$"]'),
+    clause(selector, around, '[shop~"^(coffee|bakery|deli)$"]'),
   ];
+}
+
+function overpassRegexKeyword(searchQuery: string) {
+  const keyword = searchQuery.trim().slice(0, 24);
+  if (keyword.length < 2) return "";
+  return keyword.replace(/[\\^$.*+?()[\]{}|"']/g, "\\$&");
 }
 
 function clausesForQuery(searchQuery: string, selector: ElementSelector, around: string) {
   const profile = searchProfiles.find((candidate) => candidate.pattern.test(searchQuery));
-  return profile ? profile.clauses(selector, around).slice(0, 5) : coreClauses(selector, around);
+  const keyword = overpassRegexKeyword(searchQuery);
+  const clauses = coreClauses(selector, around);
+
+  if (keyword) {
+    clauses.unshift(
+      clause(selector, around, `[amenity~"^(restaurant|cafe|fast_food)$"][name~"${keyword}",i]`),
+      clause(selector, around, `[shop~"^(coffee|bakery|deli)$"][name~"${keyword}",i]`),
+    );
+  }
+  if (profile) clauses.push(profile.clause(selector, around));
+
+  return clauses.slice(0, 5);
 }
 
 function overpassQuery(

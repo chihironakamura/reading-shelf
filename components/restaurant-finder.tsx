@@ -74,9 +74,50 @@ const distanceOptions: { value: DistancePreference; label: string }[] = [
 ];
 
 type RequestState = "idle" | "loading" | "success" | "error";
+type DiagnosisMood = "hearty" | "light" | "either";
+type DiagnosisBudget = "under1000" | "1000to2000" | "any";
+type DiagnosisCompany = "alone" | "together" | "drinks";
+
+const diagnosisCandidates: {
+  name: string;
+  moods: DiagnosisMood[];
+  budgets: DiagnosisBudget[];
+  companies: DiagnosisCompany[];
+}[] = [
+  { name: "ラーメン", moods: ["hearty", "either"], budgets: ["under1000", "1000to2000", "any"], companies: ["alone"] },
+  { name: "定食", moods: ["hearty", "light", "either"], budgets: ["under1000", "1000to2000", "any"], companies: ["alone", "together"] },
+  { name: "カレー", moods: ["hearty", "either"], budgets: ["under1000", "1000to2000", "any"], companies: ["alone", "together"] },
+  { name: "和食", moods: ["light", "either"], budgets: ["1000to2000", "any"], companies: ["alone", "together"] },
+  { name: "寿司", moods: ["light", "either"], budgets: ["1000to2000", "any"], companies: ["together"] },
+  { name: "イタリアン", moods: ["light", "either"], budgets: ["1000to2000", "any"], companies: ["together", "drinks"] },
+  { name: "居酒屋", moods: ["hearty", "light", "either"], budgets: ["1000to2000", "any"], companies: ["together", "drinks"] },
+  { name: "焼鳥", moods: ["hearty", "either"], budgets: ["under1000", "1000to2000", "any"], companies: ["alone", "together", "drinks"] },
+  { name: "韓国料理", moods: ["hearty", "either"], budgets: ["1000to2000", "any"], companies: ["together", "drinks"] },
+];
 
 function distanceLabel(distanceKm: number) {
   return distanceKm < 1 ? `${Math.round(distanceKm * 1000)}m` : `${distanceKm.toFixed(1)}km`;
+}
+
+function diagnoseGenres(
+  mood: DiagnosisMood | null,
+  budget: DiagnosisBudget | null,
+  company: DiagnosisCompany | null,
+) {
+  if (!mood || !budget || !company) return [];
+
+  return diagnosisCandidates
+    .map((candidate, index) => ({
+      name: candidate.name,
+      score:
+        (candidate.moods.includes(mood) ? 4 : 0) +
+        (candidate.budgets.includes(budget) ? 2 : 0) +
+        (candidate.companies.includes(company) ? 5 : 0) -
+        index * 0.001,
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map(({ name }) => name);
 }
 
 export function RestaurantFinder() {
@@ -97,6 +138,10 @@ export function RestaurantFinder() {
   const [searchedQuery, setSearchedQuery] = useState("");
   const [searchedRadiusKm, setSearchedRadiusKm] = useState<(typeof radii)[number]>(3);
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(null);
+  const [showDiagnosis, setShowDiagnosis] = useState(false);
+  const [diagnosisMood, setDiagnosisMood] = useState<DiagnosisMood | null>(null);
+  const [diagnosisBudget, setDiagnosisBudget] = useState<DiagnosisBudget | null>(null);
+  const [diagnosisCompany, setDiagnosisCompany] = useState<DiagnosisCompany | null>(null);
 　const [showAdvisor, setShowAdvisor] = useState(true);
   const [mood, setMood] = useState<Mood | null>(null);
   const [budget, setBudget] = useState<Budget | null>(null);
@@ -125,6 +170,11 @@ const recentMealSuggestions = useMemo(
 const homeRecipes = useMemo(
   () => recommendHomeRecipes([...ingredients, ingredientInput.trim()].filter(Boolean).join("、")),
   [ingredientInput, ingredients],
+);
+
+const diagnosisResults = useMemo(
+  () => diagnoseGenres(diagnosisMood, diagnosisBudget, diagnosisCompany),
+  [diagnosisBudget, diagnosisCompany, diagnosisMood],
 );
 
   function addIngredients(newIngredients: string[]) {
@@ -231,16 +281,14 @@ function updateRecentMeal(index: number, value: string) {
     window.setTimeout(() => document.getElementById("food-query")?.focus(), 50);
   }
 
-  async function searchRestaurants(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
+  async function runRestaurantSearch(searchQuery: string) {
     if (!coordinates) {
       setError("先に現在地を取得してください。");
       setRequestState("error");
       return;
     }
 
-    const trimmedQuery = query.trim();
+    const trimmedQuery = searchQuery.trim();
     setRequestState("loading");
     setError("");
 
@@ -265,6 +313,20 @@ function updateRecentMeal(index: number, value: string) {
       setError(searchError instanceof Error ? searchError.message : "検索中にエラーが発生しました。");
       setRequestState("error");
     }
+  }
+
+  function searchRestaurants(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void runRestaurantSearch(query);
+  }
+
+  function searchDiagnosisResult() {
+    const topGenre = diagnosisResults[0];
+    if (!topGenre) return;
+
+    setQuery(topGenre);
+    setShowDiagnosis(false);
+    void runRestaurantSearch(topGenre);
   }
 
   return (
@@ -317,10 +379,32 @@ function updateRecentMeal(index: number, value: string) {
             食べたいものが決まってても、
             <br className="sm:hidden" />決まってなくても。
           </p>
+          <button
+            type="button"
+            onClick={() => setShowDiagnosis((current) => !current)}
+            className="mt-6 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#ffd178] px-5 py-3 text-base font-black text-forest shadow-lg shadow-black/10 transition active:scale-[0.99] sm:w-auto"
+          >
+            <Sparkles className="size-5" />
+            診断して決める
+          </button>
         </div>
       </section>
 
-      <form id="restaurant-search" onSubmit={searchRestaurants} className="relative -mt-3 rounded-[1.75rem] border border-forest/10 bg-white p-4 shadow-card sm:p-6">
+      {showDiagnosis && (
+        <DiagnosisPanel
+          mood={diagnosisMood}
+          budget={diagnosisBudget}
+          company={diagnosisCompany}
+          results={diagnosisResults}
+          onMoodChange={setDiagnosisMood}
+          onBudgetChange={setDiagnosisBudget}
+          onCompanyChange={setDiagnosisCompany}
+          onSearch={searchDiagnosisResult}
+          searching={requestState === "loading"}
+        />
+      )}
+
+      <form id="restaurant-search" onSubmit={searchRestaurants} className={`relative rounded-[1.75rem] border border-forest/10 bg-white p-4 shadow-card sm:p-6 ${showDiagnosis ? "mt-4" : "-mt-3"}`}>
         <label htmlFor="food-query" className="mb-2.5 block text-sm font-black text-ink">食べたい料理・素材</label>
         <div className="relative">
           <Search className="absolute left-5 top-1/2 size-6 -translate-y-1/2 text-leaf" />
@@ -769,6 +853,137 @@ function updateRecentMeal(index: number, value: string) {
       </div>
       )}
     </main>
+  );
+}
+
+function DiagnosisPanel({
+  mood,
+  budget,
+  company,
+  results,
+  onMoodChange,
+  onBudgetChange,
+  onCompanyChange,
+  onSearch,
+  searching,
+}: {
+  mood: DiagnosisMood | null;
+  budget: DiagnosisBudget | null;
+  company: DiagnosisCompany | null;
+  results: string[];
+  onMoodChange: (value: DiagnosisMood) => void;
+  onBudgetChange: (value: DiagnosisBudget) => void;
+  onCompanyChange: (value: DiagnosisCompany) => void;
+  onSearch: () => void;
+  searching: boolean;
+}) {
+  return (
+    <section className="mt-4 rounded-[1.75rem] border-2 border-[#f1c96f] bg-[#fff9e9] p-4 shadow-card sm:p-6">
+      <div className="flex items-center gap-3">
+        <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#ffd178] text-forest">
+          <Sparkles className="size-5" />
+        </div>
+        <div>
+          <p className="text-xs font-black tracking-[0.12em] text-[#9a6710]">今日何食べる診断</p>
+          <h2 className="text-xl font-black text-ink">3問でおすすめを決定</h2>
+        </div>
+      </div>
+
+      <DiagnosisQuestion
+        number="Q1"
+        title="今の気分は？"
+        value={mood}
+        options={[
+          { value: "hearty", label: "ガッツリ" },
+          { value: "light", label: "あっさり" },
+          { value: "either", label: "どちらでも" },
+        ]}
+        onChange={onMoodChange}
+      />
+      <DiagnosisQuestion
+        number="Q2"
+        title="予算は？"
+        value={budget}
+        options={[
+          { value: "under1000", label: "～1000円" },
+          { value: "1000to2000", label: "1000～2000円" },
+          { value: "any", label: "気にしない" },
+        ]}
+        onChange={onBudgetChange}
+      />
+      <DiagnosisQuestion
+        number="Q3"
+        title="今日は誰と？"
+        value={company}
+        options={[
+          { value: "alone", label: "ひとり" },
+          { value: "together", label: "誰かと" },
+          { value: "drinks", label: "飲みたい" },
+        ]}
+        onChange={onCompanyChange}
+      />
+
+      {results.length > 0 && (
+        <div className="mt-6 rounded-2xl bg-white p-4 shadow-sm" aria-live="polite">
+          <p className="text-sm font-black text-[#9a6710]">今日のおすすめジャンル</p>
+          <div className="mt-3 grid gap-2">
+            {results.map((genre, index) => (
+              <div key={genre} className="flex min-h-12 items-center gap-3 rounded-xl bg-cream px-3 py-2">
+                <span className={`grid size-8 shrink-0 place-items-center rounded-full text-xs font-black ${index === 0 ? "bg-coral text-white" : "bg-forest text-white"}`}>
+                  {index + 1}
+                </span>
+                <span className="text-base font-black text-ink">{genre}</span>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={onSearch}
+            disabled={searching}
+            className="mt-4 flex min-h-16 w-full items-center justify-center gap-2 rounded-2xl bg-coral px-5 py-4 text-lg font-black text-white shadow-lg shadow-coral/20 transition active:scale-[0.99] disabled:cursor-wait disabled:opacity-70"
+          >
+            {searching ? <LoaderCircle className="size-5 animate-spin" /> : <Search className="size-5" />}
+            {searching ? "お店を検索中..." : "近くのお店を探す"}
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DiagnosisQuestion<T extends string>({
+  number,
+  title,
+  options,
+  value,
+  onChange,
+}: {
+  number: string;
+  title: string;
+  options: { value: T; label: string }[];
+  value: T | null;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <fieldset className="mt-5">
+      <legend className="flex items-center gap-2 text-sm font-black text-ink">
+        <span className="text-coral">{number}</span>
+        {title}
+      </legend>
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={value === option.value}
+            onClick={() => onChange(option.value)}
+            className={`min-h-12 rounded-xl border px-3 py-2 text-sm font-black transition active:scale-[0.98] ${value === option.value ? "border-forest bg-forest text-white shadow-md" : "border-forest/10 bg-white text-ink hover:border-leaf/40"}`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 

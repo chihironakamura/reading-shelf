@@ -67,6 +67,8 @@ type TodayShelf = {
   moodId?: MoodId | null;
 };
 
+type TodayShelfByMood = Record<string, TodayShelf>;
+
 type TodayShelfCard = {
   item: ReadingItem;
   reason: string;
@@ -102,6 +104,7 @@ const collectSources: Array<{ value: CollectSource; label: string }> = [
   { value: "blog", label: "個人ブログ" },
   { value: "aozora", label: "青空文庫" },
 ];
+const sourceTypePriority: SourceType[] = ["narou", "note", "kakuyomu", "blog", "manual", "aozora"];
 const itemsPerPage = 6;
 const todayShelfThemes = ["朝のコーヒー", "静かな夜", "沖縄を感じる", "仕事終わり", "旅に出たい", "考えごと", "夏の海", "雨の日"];
 const moodOptions: MoodOption[] = [
@@ -162,6 +165,7 @@ const storageKeys = {
   recommendationSeed: "yomutana.recommendationSeed",
   selectedMood: "yomutana.selectedMood",
   todayShelf: "todayShelf",
+  todayShelfByMood: "todayShelfByMood",
   todayShelfDate: "todayShelfDate",
 };
 
@@ -405,13 +409,13 @@ function getMoodOption(moodId: MoodId | null) {
   return moodId ? moodOptions.find((mood) => mood.id === moodId) ?? null : null;
 }
 
-function getMoodScore(item: ReadingItem, moodId: MoodId | null) {
+function calculateMoodScore(item: ReadingItem, moodId: MoodId | null) {
   const mood = getMoodOption(moodId);
   if (!mood) {
     return 0;
   }
 
-  const searchableText = [item.title, item.author, item.genre, item.description, item.excerpt, item.sourceName].join(" ");
+  const searchableText = [item.title, item.description, item.excerpt].join(" ");
   let score = 0;
 
   score += mood.genreScores[item.genre] ?? 0;
@@ -431,6 +435,96 @@ function getMoodScore(item: ReadingItem, moodId: MoodId | null) {
   return score;
 }
 
+function getTodayShelfMoodKey(moodId: MoodId | null) {
+  return moodId ?? "default";
+}
+
+function readTodayShelfByMood() {
+  return readJson<TodayShelfByMood>(storageKeys.todayShelfByMood, {});
+}
+
+function saveTodayShelfByMood(moodId: MoodId | null, shelf: TodayShelf) {
+  const shelves = readTodayShelfByMood();
+  shelves[getTodayShelfMoodKey(moodId)] = shelf;
+  window.localStorage.setItem(storageKeys.todayShelfByMood, JSON.stringify(shelves));
+}
+
+function hasEnoughSourceDiversity(shelf: TodayShelf, items: ReadingItem[], readHistory: string[]) {
+  const readSet = new Set(readHistory);
+  const itemMap = new Map(items.map((item) => [item.id, item]));
+  const availableSourceTypes = new Set(
+    items
+      .filter((item) => !readSet.has(item.id) && isValidSourceUrl(item.sourceUrl))
+      .map((item) => item.sourceType),
+  );
+  const shelfSourceTypes = new Set(
+    shelf.ids
+      .map((id) => itemMap.get(id))
+      .filter((item): item is ReadingItem => item !== undefined && !readSet.has(item.id) && isValidSourceUrl(item.sourceUrl))
+      .map((item) => item.sourceType),
+  );
+  const requiredSourceTypes = Math.min(3, availableSourceTypes.size, shelf.ids.length);
+
+  return shelfSourceTypes.size >= requiredSourceTypes;
+}
+
+function getSourcePriority(sourceType: SourceType) {
+  const index = sourceTypePriority.indexOf(sourceType);
+  return index === -1 ? sourceTypePriority.length : index;
+}
+
+function selectDiverseBySource<T extends { item: ReadingItem; score: number }>(candidates: T[], limit: number) {
+  const validCandidates = candidates
+    .filter(({ item }) => isValidSourceUrl(item.sourceUrl))
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        getSourcePriority(a.item.sourceType) - getSourcePriority(b.item.sourceType) ||
+        a.item.title.localeCompare(b.item.title, "ja"),
+    );
+  const bySource = new Map<SourceType, T[]>();
+
+  sourceTypePriority.forEach((sourceType) => {
+    bySource.set(sourceType, []);
+  });
+
+  validCandidates.forEach((candidate) => {
+    const bucket = bySource.get(candidate.item.sourceType) ?? [];
+    bucket.push(candidate);
+    bySource.set(candidate.item.sourceType, bucket);
+  });
+
+  const selected: T[] = [];
+  const selectedIds = new Set<string>();
+  const nonAozoraSources = sourceTypePriority.filter((sourceType) => sourceType !== "aozora" && (bySource.get(sourceType)?.length ?? 0) > 0);
+  const roundRobinSources = nonAozoraSources.length > 0 ? [...nonAozoraSources, "aozora" as SourceType] : sourceTypePriority;
+
+  while (selected.length < limit && roundRobinSources.some((sourceType) => (bySource.get(sourceType)?.length ?? 0) > 0)) {
+    for (const sourceType of roundRobinSources) {
+      if (selected.length >= limit) {
+        break;
+      }
+
+      const bucket = bySource.get(sourceType);
+      const candidate = bucket?.shift();
+
+      if (candidate && !selectedIds.has(candidate.item.id)) {
+        selected.push(candidate);
+        selectedIds.add(candidate.item.id);
+      }
+    }
+  }
+
+  validCandidates.forEach((candidate) => {
+    if (selected.length < limit && !selectedIds.has(candidate.item.id)) {
+      selected.push(candidate);
+      selectedIds.add(candidate.item.id);
+    }
+  });
+
+  return selected;
+}
+
 function getTodayShelfReason(
   item: ReadingItem,
   favorites: string[],
@@ -442,7 +536,7 @@ function getTodayShelfReason(
   const favoriteGenre = readItems.find((readItem) => favorites.includes(readItem.id))?.genre;
   const savedTimeBucket = readItems.find((readItem) => readLater.includes(readItem.id));
 
-  if (mood && getMoodScore(item, mood.id) > 0) {
+  if (mood && calculateMoodScore(item, mood.id) > 0) {
     return `今日の気分「${mood.label}」に合う一冊です`;
   }
 
@@ -485,52 +579,36 @@ function createTodayShelf(
   const readGenres = new Set(readItems.map((item) => item.genre));
   const recommendationScore = new Map(recommendations.map((recommendation) => [recommendation.item.id, recommendation.score]));
   const theme = todayShelfThemes[seed % todayShelfThemes.length];
-  const scoredItems = rotateBySeed(
-    items
-      .filter((item) => !readSet.has(item.id))
-      .map((item, index) => {
-        const aiScore = recommendationScore.get(item.id) ?? 0;
-        const quietGenreBonus = readGenres.has(item.genre) ? 0 : 3;
-        const popularBonus = (favorites.includes(item.id) ? 2 : 0) + (readLater.includes(item.id) ? 1 : 0);
-        const newItemBonus = Math.max(0, 2 - index * 0.05);
-        const moodBonus = getMoodScore(item, moodId);
-        const themeBonus =
-          (theme.includes("沖縄") && item.genre === "沖縄") ||
-          (theme.includes("旅") && item.genre === "旅") ||
-          (theme.includes("仕事") && item.genre === "仕事") ||
-          (theme.includes("考え") && item.genre === "長文考察")
-            ? 2
-            : 0;
+  const scoredItems = items
+    .filter((item) => !readSet.has(item.id) && isValidSourceUrl(item.sourceUrl))
+    .map((item, index) => {
+      const aiScore = recommendationScore.get(item.id) ?? 0;
+      const quietGenreBonus = readGenres.has(item.genre) ? 0 : 3;
+      const popularBonus = (favorites.includes(item.id) ? 2 : 0) + (readLater.includes(item.id) ? 1 : 0);
+      const newItemBonus = Math.max(0, 2 - index * 0.05);
+      const moodBonus = calculateMoodScore(item, moodId);
+      const themeBonus =
+        (theme.includes("沖縄") && item.genre === "沖縄") ||
+        (theme.includes("旅") && item.genre === "旅") ||
+        (theme.includes("仕事") && item.genre === "仕事") ||
+        (theme.includes("考え") && item.genre === "長文考察")
+          ? 2
+          : 0;
+      const seedBonus = ((seed + index + 1) % 7) / 100;
 
-        return {
-          item,
-          score: aiScore * 10 + quietGenreBonus + popularBonus + newItemBonus + themeBonus + moodBonus,
-        };
-      })
-      .sort((a, b) => b.score - a.score || a.item.title.localeCompare(b.item.title, "ja")),
-    seed,
-  );
-  const selected: ReadingItem[] = [];
-  const selectedIds = new Set<string>();
-
-  genres.forEach((genre) => {
-    if (selected.length >= 6) {
-      return;
-    }
-
-    const candidate = scoredItems.find(({ item }) => item.genre === genre && !selectedIds.has(item.id));
-    if (candidate) {
-      selected.push(candidate.item);
-      selectedIds.add(candidate.item.id);
-    }
-  });
-
-  scoredItems.forEach(({ item }) => {
-    if (selected.length < 6 && !selectedIds.has(item.id)) {
-      selected.push(item);
-      selectedIds.add(item.id);
-    }
-  });
+      return {
+        item,
+        score:
+          (moodId ? aiScore : aiScore * 10) +
+          quietGenreBonus +
+          popularBonus +
+          newItemBonus +
+          themeBonus +
+          moodBonus * (moodId ? 25 : 1) +
+          seedBonus,
+      };
+    });
+  const selected = selectDiverseBySource(scoredItems, 6).map(({ item }) => item);
 
   return {
     date,
@@ -542,7 +620,7 @@ function createTodayShelf(
 }
 
 function rotateRecommendations(recommendations: Recommendation[], seed: number) {
-  const pool = recommendations.slice(0, 20);
+  const pool = selectDiverseBySource(recommendations.slice(0, 20), 20);
 
   if (pool.length <= 5) {
     return pool;
@@ -603,16 +681,16 @@ function buildRecommendations(
   const topSavedTimeBucket = getTopKey(savedTimeBuckets);
 
   return items
-    .filter((item) => !readSet.has(item.id))
+    .filter((item) => !readSet.has(item.id) && isValidSourceUrl(item.sourceUrl))
     .map((item, index) => {
       const reasons: string[] = [];
       const timeBucket = getTimeBucket(item.readingMinutes);
       const mood = getMoodOption(moodId);
-      const moodScore = getMoodScore(item, moodId);
+      const moodScore = calculateMoodScore(item, moodId);
       let score = 0;
 
       if (moodScore > 0 && mood) {
-        score += moodScore;
+        score += moodScore * 10;
         reasons.push(`今日の気分「${mood.label}」に合うため`);
       }
 
@@ -830,14 +908,18 @@ export function ReadingShelf() {
 
         const aScore = itemScoreMap.get(a.id);
         const bScore = itemScoreMap.get(b.id);
+        const aMoodScore = selectedMood ? calculateMoodScore(a, selectedMood) : 0;
+        const bMoodScore = selectedMood ? calculateMoodScore(b, selectedMood) : 0;
+        const aFinalScore = (aScore?.score ?? 0) + aMoodScore * 20;
+        const bFinalScore = (bScore?.score ?? 0) + bMoodScore * 20;
 
-        if ((bScore?.score ?? 0) !== (aScore?.score ?? 0)) {
-          return (bScore?.score ?? 0) - (aScore?.score ?? 0);
+        if (bFinalScore !== aFinalScore) {
+          return bFinalScore - aFinalScore;
         }
 
         return (aScore?.index ?? Number.MAX_SAFE_INTEGER) - (bScore?.index ?? Number.MAX_SAFE_INTEGER);
       });
-  }, [favorites, genreFilter, itemScoreMap, items, priceFilter, query, readHistory, readLater, showReadItems, viewFilter]);
+  }, [favorites, genreFilter, itemScoreMap, items, priceFilter, query, readHistory, readLater, selectedMood, showReadItems, viewFilter]);
 
   const totalMinutes = filteredItems.reduce((sum, item) => sum + item.readingMinutes, 0);
   const unreadItemsCount = useMemo(() => {
@@ -849,8 +931,8 @@ export function ReadingShelf() {
     [favorites, items, readHistory, readLater, recommendationSeed, selectedMood],
   );
   const recommendations = useMemo(
-    () => rotateRecommendations(recommendationCandidates, recommendationSeed),
-    [recommendationCandidates, recommendationSeed],
+    () => (selectedMood ? selectDiverseBySource(recommendationCandidates, 5) : rotateRecommendations(recommendationCandidates, recommendationSeed)),
+    [recommendationCandidates, recommendationSeed, selectedMood],
   );
   const selectedMoodOption = getMoodOption(selectedMood);
   const todayShelfCards = useMemo<TodayShelfCard[]>(() => {
@@ -943,18 +1025,16 @@ export function ReadingShelf() {
     }
 
     const date = getTodayDateKey();
-    const savedDate = window.localStorage.getItem(storageKeys.todayShelfDate);
-    const savedShelf = readJson<TodayShelf | null>(storageKeys.todayShelf, null);
+    const savedShelf = readTodayShelfByMood()[getTodayShelfMoodKey(selectedMood)] ?? null;
 
-    if (savedDate === date && savedShelf && (savedShelf.moodId ?? null) === selectedMood) {
+    if (savedShelf?.date === date && (savedShelf.moodId ?? null) === selectedMood && hasEnoughSourceDiversity(savedShelf, items, readHistory)) {
       setTodayShelf(savedShelf);
       return;
     }
 
     const nextShelf = createTodayShelf(items, recommendationCandidates, readHistory, favorites, readLater, date, selectedMood);
     setTodayShelf(nextShelf);
-    window.localStorage.setItem(storageKeys.todayShelf, JSON.stringify(nextShelf));
-    window.localStorage.setItem(storageKeys.todayShelfDate, date);
+    saveTodayShelfByMood(selectedMood, nextShelf);
   }, [favorites, items, readHistory, readLater, recommendationCandidates, selectedMood, storageReady]);
 
   function toggleList(id: string, setter: (value: string[]) => void, current: string[]) {
@@ -990,8 +1070,7 @@ export function ReadingShelf() {
       Date.now() % 100_000,
     );
     setTodayShelf(nextShelf);
-    window.localStorage.setItem(storageKeys.todayShelf, JSON.stringify(nextShelf));
-    window.localStorage.setItem(storageKeys.todayShelfDate, date);
+    saveTodayShelfByMood(selectedMood, nextShelf);
   }
 
   function selectMood(moodId: MoodId | null) {
@@ -1002,8 +1081,7 @@ export function ReadingShelf() {
     const moodRecommendations = buildRecommendations(items, readHistory, favorites, readLater, recommendationSeed, moodId);
     const nextShelf = createTodayShelf(items, moodRecommendations, readHistory, favorites, readLater, date, moodId, Date.now() % 100_000);
     setTodayShelf(nextShelf);
-    window.localStorage.setItem(storageKeys.todayShelf, JSON.stringify(nextShelf));
-    window.localStorage.setItem(storageKeys.todayShelfDate, date);
+    saveTodayShelfByMood(moodId, nextShelf);
     setVisibleCount(itemsPerPage);
   }
 

@@ -960,6 +960,51 @@ export function ReadingShelf() {
 
   return (
     <main className="ocean-shell min-h-dvh text-[#17324D]">
+      <section className="landing-hero" aria-labelledby="landing-title">
+        <div className="landing-clouds" aria-hidden />
+        <div className="landing-waves" aria-hidden />
+        <div className="landing-hero-inner">
+          <div className="landing-copy">
+            <p className="landing-kicker">🌊 AI Reading Curator</p>
+            <h1 id="landing-title">読む棚</h1>
+            <p className="landing-lead">今日も、いい文章と出会おう。</p>
+            <p className="landing-poem">波のように、<br />新しい物語が流れ着く。</p>
+            <div className="landing-description">
+              <p>AIが毎日、<br className="sm:hidden" />あなたのための小さな本棚をつくります。</p>
+              <p>無料で公開されている読み物を集め、<br className="hidden sm:block" />あなたの好みに合わせて整理・おすすめします。</p>
+            </div>
+            <div className="landing-actions" aria-label="読む棚を始める">
+              <a href="#today-shelf" className="landing-button landing-button-primary">📖 読み始める</a>
+              <a href="#ai-recommendations" className="landing-button landing-button-secondary">✨ AIおすすめを見る</a>
+            </div>
+          </div>
+
+          <div className="landing-features" aria-label="読む棚の特徴">
+            <article>
+              <span>🌊</span>
+              <h2>今日の棚</h2>
+              <p>毎日AIが新しい読み物を選びます</p>
+            </article>
+            <article>
+              <span>🤖</span>
+              <h2>AIおすすめ</h2>
+              <p>読書履歴からあなた専用に提案</p>
+            </article>
+            <article>
+              <span>📚</span>
+              <h2>無料・有料を整理</h2>
+              <p>読みたい文章だけを集められます</p>
+            </article>
+          </div>
+
+          <a href="#today-shelf" className="landing-scroll" aria-label="今日の棚へ移動">
+            <span>↓</span>
+            <span>↓</span>
+            <span>↓</span>
+          </a>
+        </div>
+      </section>
+
       <section className="mx-auto flex w-full max-w-[96rem] flex-col gap-8 px-4 pb-20 pt-5 sm:px-6 lg:px-8">
         <header className="ocean-hero grid gap-8 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.34fr)] lg:items-end">
           <div className="relative z-10 space-y-5">
@@ -1080,7 +1125,7 @@ export function ReadingShelf() {
           </p>
         )}
 
-        <section className="today-shelf grid gap-6 p-5 sm:p-6 lg:p-7">
+        <section id="today-shelf" className="today-shelf grid scroll-mt-8 gap-6 p-5 sm:p-6 lg:p-7">
           <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-3">
@@ -1236,7 +1281,7 @@ export function ReadingShelf() {
           <StatusCard label="保存済み" value={`${new Set([...favorites, ...readLater]).size}件`} icon={<Sparkles aria-hidden size={20} />} />
         </section>
 
-        <section className="ocean-recommend grid gap-5 p-5 sm:p-6">
+        <section id="ai-recommendations" className="ocean-recommend grid scroll-mt-8 gap-5 p-5 sm:p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-black text-[#2F9FE8]">AIおすすめ</p>

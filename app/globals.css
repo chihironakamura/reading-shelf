@@ -49,6 +49,7 @@ button,
 a {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+  pointer-events: auto;
 }
 
 input {
@@ -82,6 +83,7 @@ svg {
 }
 
 .landing-hero {
+  z-index: 0;
   position: relative;
   overflow: hidden;
   min-height: 80vh;
@@ -95,6 +97,7 @@ svg {
 }
 
 .landing-hero::before {
+  pointer-events: none;
   position: absolute;
   inset: 0;
   z-index: -2;
@@ -109,6 +112,7 @@ svg {
 }
 
 .landing-clouds {
+  pointer-events: none;
   position: absolute;
   inset: 8% -10% auto;
   z-index: -1;
@@ -122,6 +126,7 @@ svg {
 }
 
 .landing-waves {
+  pointer-events: none;
   position: absolute;
   inset-inline: -12%;
   bottom: 17%;
@@ -135,6 +140,9 @@ svg {
 }
 
 .landing-hero-inner {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
   width: min(100%, 1200px);
   display: grid;
   justify-items: center;
@@ -200,6 +208,9 @@ svg {
 }
 
 .landing-actions {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -208,6 +219,9 @@ svg {
 }
 
 .landing-button {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -282,6 +296,9 @@ svg {
 }
 
 .landing-scroll {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
   display: grid;
   gap: 0;
   color: #0e4a7b;
@@ -346,6 +363,22 @@ svg {
   }
 }
 
+.app-content {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.app-content button,
+.app-content a,
+.app-content input,
+.app-content select,
+.app-content textarea {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+}
+
 .ocean-shell {
   position: relative;
   isolation: isolate;
@@ -401,6 +434,7 @@ svg {
 }
 
 .prelaunch-footer::before {
+  pointer-events: none;
   position: absolute;
   inset: 0 0 auto;
   height: 24px;
@@ -423,6 +457,7 @@ svg {
 }
 
 .ocean-hero::before {
+  pointer-events: none;
   position: absolute;
   right: -4rem;
   bottom: -3.8rem;
@@ -435,6 +470,7 @@ svg {
 }
 
 .ocean-hero::after {
+  pointer-events: none;
   position: absolute;
   right: 2rem;
   top: 1.5rem;
@@ -486,6 +522,7 @@ svg {
 }
 
 .collect-card::after {
+  pointer-events: none;
   position: absolute;
   inset: auto -20% -42% -20%;
   height: 70%;
@@ -528,6 +565,7 @@ svg {
 }
 
 .mood-card::after {
+  pointer-events: none;
   position: absolute;
   right: -2.5rem;
   bottom: -2.8rem;
@@ -539,6 +577,7 @@ svg {
 }
 
 .today-shelf::before {
+  pointer-events: none;
   position: absolute;
   right: -2rem;
   bottom: 1.2rem;
@@ -551,6 +590,7 @@ svg {
 }
 
 .today-shelf::after {
+  pointer-events: none;
   position: absolute;
   right: 1.2rem;
   bottom: 1rem;
@@ -593,6 +633,7 @@ svg {
 }
 
 .ocean-recommend::after {
+  pointer-events: none;
   position: absolute;
   right: 1.2rem;
   bottom: 0.7rem;

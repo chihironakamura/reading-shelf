@@ -725,10 +725,6 @@ export function ReadingShelf() {
     setVisibleCount((current) => Math.min(current + itemsPerPage, filteredItems.length));
   }, [filteredItems.length]);
   const handleLoadMoreClick = useCallback(() => {
-    if (process.env.NODE_ENV === "development") {
-      console.log("load more clicked");
-    }
-
     loadMoreItems();
   }, [loadMoreItems]);
 
@@ -755,14 +751,6 @@ export function ReadingShelf() {
   }, [displayedItems.length, filteredItems.length]);
 
   useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
-      console.log("visibleCount", visibleCount);
-      console.log("filteredUnreadWorks.length", filteredItems.length);
-      console.log("displayedWorks.length", displayedItems.length);
-    }
-  }, [displayedItems.length, filteredItems.length, visibleCount]);
-
-  useEffect(() => {
     const target = loadMoreRef.current;
 
     if (!target || typeof IntersectionObserver === "undefined") {
@@ -772,10 +760,6 @@ export function ReadingShelf() {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting) && hasMoreItems) {
-          if (process.env.NODE_ENV === "development") {
-            console.log("observer fired");
-          }
-
           loadMoreItems();
         }
       },
@@ -1005,7 +989,7 @@ export function ReadingShelf() {
         </div>
       </section>
 
-      <section className="mx-auto flex w-full max-w-[96rem] flex-col gap-8 px-4 pb-20 pt-5 sm:px-6 lg:px-8">
+      <section className="app-content mx-auto flex w-full max-w-[96rem] flex-col gap-8 px-4 pb-20 pt-5 sm:px-6 lg:px-8">
         <header className="ocean-hero grid gap-8 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.34fr)] lg:items-end">
           <div className="relative z-10 space-y-5">
             <div className="flex flex-wrap items-center gap-3">

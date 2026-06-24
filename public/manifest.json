@@ -1,14 +1,14 @@
 {
-  "name": "今日のごはん",
-  "short_name": "今日のごはん",
-  "description": "食べたいものが決まっていても、決まっていなくても。近くの飲食店を探せます。",
+  "name": "読む棚",
+  "short_name": "読む棚",
+  "description": "小説、エッセイ、長文投稿などをジャンルごとに整理して紹介する読み物キュレーションアプリです。",
   "lang": "ja",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#f7f4ec",
-  "theme_color": "#f7f4ec",
+  "background_color": "#eef9ff",
+  "theme_color": "#ddf3ff",
   "icons": [
     {
       "src": "/icons/icon-192.png",

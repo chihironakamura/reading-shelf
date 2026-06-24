@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "今日のごはん",
-  description: "食べたいものが決まっていても、決まっていなくても。近くの飲食店を探せます。",
-  applicationName: "今日のごはん",
+  title: "読む棚",
+  description: "小説、エッセイ、長文投稿などをジャンルごとに整理して紹介する読み物キュレーションアプリです。",
+  applicationName: "読む棚",
   manifest: "/manifest.json",
   icons: {
     icon: [
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "今日のごはん",
+    title: "読む棚",
   },
   formatDetection: {
     telephone: false,
@@ -28,7 +28,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: "#f7f4ec",
+  themeColor: "#DDF3FF",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

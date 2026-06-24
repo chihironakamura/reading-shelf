@@ -20,6 +20,8 @@ import type { ReactNode } from "react";
 
 type Genre = "小説" | "エッセイ" | "旅" | "ホラー" | "仕事" | "沖縄" | "舞台" | "長文考察";
 type PriceType = "無料" | "有料";
+type SourceType = "aozora" | "narou" | "note" | "kakuyomu" | "blog" | "manual";
+type CollectSource = "all" | Exclude<SourceType, "manual">;
 
 type ReadingItem = {
   id: string;
@@ -31,6 +33,7 @@ type ReadingItem = {
   excerpt: string;
   readingMinutes: number;
   sourceName: string;
+  sourceType: SourceType;
   sourceUrl: string;
 };
 
@@ -52,6 +55,8 @@ type CollectStatus = {
 type CollectReadingsResponse = {
   items?: ReadingItem[];
   error?: string;
+  message?: string;
+  failedSources?: string[];
 };
 
 type TodayShelf = {
@@ -76,6 +81,22 @@ type MoodOption = {
 
 const genres: Genre[] = ["小説", "エッセイ", "旅", "ホラー", "仕事", "沖縄", "舞台", "長文考察"];
 const priceTypes: PriceType[] = ["無料", "有料"];
+const sourceTypes: Array<{ type: SourceType; label: string }> = [
+  { type: "aozora", label: "青空文庫" },
+  { type: "narou", label: "小説家になろう" },
+  { type: "note", label: "note" },
+  { type: "kakuyomu", label: "カクヨム" },
+  { type: "blog", label: "個人ブログ" },
+  { type: "manual", label: "手動登録" },
+];
+const collectSources: Array<{ value: CollectSource; label: string }> = [
+  { value: "all", label: "すべて" },
+  { value: "narou", label: "小説家になろう" },
+  { value: "note", label: "note" },
+  { value: "kakuyomu", label: "カクヨム" },
+  { value: "blog", label: "個人ブログ" },
+  { value: "aozora", label: "青空文庫" },
+];
 const itemsPerPage = 6;
 const todayShelfThemes = ["朝のコーヒー", "静かな夜", "沖縄を感じる", "仕事終わり", "旅に出たい", "考えごと", "夏の海", "雨の日"];
 const moodOptions: MoodOption[] = [
@@ -103,99 +124,107 @@ const storageKeys = {
 const sampleItems: ReadingItem[] = [
   {
     id: "sample-novel-1",
-    title: "夜明け前の栞",
-    author: "水城 透",
+    title: "羅生門",
+    author: "芥川 竜之介",
     genre: "小説",
     priceType: "無料",
-    description: "古書店で見つけた一冊をきっかけに、失われた手紙の行方を追う静かな短編小説。",
-    excerpt: "雨の匂いが残る朝、栞だけがページの間で昨日の時間を覚えていた。",
+    description: "荒れ果てた羅生門を舞台に、人が生き延びるための一線を描く短編小説。",
+    excerpt: "下人は、大きな門の下で雨やみを待っていた。",
     readingMinutes: 18,
-    sourceName: "架空文庫",
-    sourceUrl: "https://example.com/yomutana/yoake",
+    sourceName: "青空文庫",
+    sourceType: "aozora",
+    sourceUrl: "https://www.aozora.gr.jp/cards/000879/card127.html",
   },
   {
     id: "sample-essay-1",
-    title: "日曜日の台所から",
-    author: "春原 梢",
+    title: "吾輩は猫である",
+    author: "夏目 漱石",
     genre: "エッセイ",
     priceType: "無料",
-    description: "生活の小さな手触りを、料理と記憶からすくい上げる週末エッセイ。",
-    excerpt: "煮立つ鍋のそばでは、急がないことだけが正しい手順になる。",
-    readingMinutes: 9,
-    sourceName: "余白帖",
-    sourceUrl: "https://example.com/yomutana/kitchen",
+    description: "名もなき猫の視点から、人間社会の滑稽さをゆったり眺める長編作品。",
+    excerpt: "吾輩は猫である。名前はまだ無い。",
+    readingMinutes: 35,
+    sourceName: "青空文庫",
+    sourceType: "aozora",
+    sourceUrl: "https://www.aozora.gr.jp/cards/000148/card789.html",
   },
   {
     id: "sample-travel-1",
-    title: "各駅停車で海まで",
-    author: "青野 灯",
+    title: "銀河鉄道の夜",
+    author: "宮沢 賢治",
     genre: "旅",
-    priceType: "有料",
-    description: "予定を詰め込まない一人旅の記録。車窓、駅前食堂、海沿いの宿をめぐる長文投稿。",
-    excerpt: "乗り換え案内に出ない時間こそ、旅の輪郭をやわらかくしてくれた。",
-    readingMinutes: 24,
-    sourceName: "旅読ジャーナル",
-    sourceUrl: "https://example.com/yomutana/local-train",
+    priceType: "無料",
+    description: "少年たちが銀河を走る列車に乗り、幻想的な夜の旅へ出る童話。",
+    excerpt: "ではみなさんは、そういうふうに川だと云われたり、乳の流れたあとだと云われたりしていたこのぼんやりと白いものがほんとうは何かご承知ですか。",
+    readingMinutes: 30,
+    sourceName: "青空文庫",
+    sourceType: "aozora",
+    sourceUrl: "https://www.aozora.gr.jp/cards/000081/card456.html",
   },
   {
     id: "sample-horror-1",
-    title: "三階の空室",
-    author: "黒瀬 円",
+    title: "注文の多い料理店",
+    author: "宮沢 賢治",
     genre: "ホラー",
     priceType: "無料",
-    description: "古い集合住宅の空き部屋にまつわる、音だけで近づいてくる怪異譚。",
-    excerpt: "誰も住んでいないはずの部屋から、毎晩きっちり二十三時に水が流れる。",
+    description: "山奥の料理店に迷い込んだ二人の紳士を、不思議で不穏な案内が待ち受ける童話。",
+    excerpt: "二人の若い紳士が、すっかりイギリスの兵隊のかたちをして、ぴかぴかする鉄砲をかついでいました。",
     readingMinutes: 14,
-    sourceName: "怪談草紙",
-    sourceUrl: "https://example.com/yomutana/vacant-room",
+    sourceName: "青空文庫",
+    sourceType: "aozora",
+    sourceUrl: "https://www.aozora.gr.jp/cards/000081/card43754.html",
   },
   {
     id: "sample-work-1",
-    title: "会議のあとに残るもの",
-    author: "佐伯 玲",
+    title: "走れメロス",
+    author: "太宰 治",
     genre: "仕事",
-    priceType: "有料",
-    description: "働く人の疲れと回復、チームで言葉を扱う難しさについて考える仕事エッセイ。",
-    excerpt: "議事録に残らない沈黙ほど、次の仕事の温度を決めていることがある。",
+    priceType: "無料",
+    description: "約束と信頼をめぐり、友の命を背負って走る男を描いた短編小説。",
+    excerpt: "メロスは激怒した。必ず、かの邪智暴虐の王を除かなければならぬと決意した。",
     readingMinutes: 12,
-    sourceName: "Desk Notes",
-    sourceUrl: "https://example.com/yomutana/meeting",
+    sourceName: "青空文庫",
+    sourceType: "aozora",
+    sourceUrl: "https://www.aozora.gr.jp/cards/000035/card1567.html",
   },
   {
     id: "sample-okinawa-1",
-    title: "風の通る市場で",
-    author: "仲里 美帆",
+    title: "坊っちゃん",
+    author: "夏目 漱石",
     genre: "沖縄",
     priceType: "無料",
-    description: "市場の朝、島野菜、家族の記憶をめぐる、沖縄の暮らしに根ざした随筆。",
-    excerpt: "島豆腐を包む手つきには、急がない朝のリズムが残っていた。",
-    readingMinutes: 11,
-    sourceName: "南風ノート",
-    sourceUrl: "https://example.com/yomutana/market",
+    description: "新任教師として地方へ赴いた青年の、まっすぐで騒がしい日々を描く小説。",
+    excerpt: "親譲りの無鉄砲で小供の時から損ばかりしている。",
+    readingMinutes: 26,
+    sourceName: "青空文庫",
+    sourceType: "aozora",
+    sourceUrl: "https://www.aozora.gr.jp/cards/000148/card752.html",
   },
   {
     id: "sample-stage-1",
-    title: "幕が下りたあとの廊下",
-    author: "藤堂 真",
+    title: "舞姫",
+    author: "森 鴎外",
     genre: "舞台",
-    priceType: "有料",
-    description: "小劇場の制作現場を描く連載エッセイ。拍手の後に残る仕事と人の気配を追う。",
-    excerpt: "舞台袖の暗がりで、誰かの小さな深呼吸だけがまだ物語を続けていた。",
+    priceType: "無料",
+    description: "ベルリンを舞台に、青年官僚と踊り子の出会いを描く近代文学の代表作。",
+    excerpt: "石炭をば早や積み果てつ。中等室の卓のほとりはいと静にて、熾熱燈の光の晴れがましきも徒なり。",
     readingMinutes: 20,
-    sourceName: "Theatre Shelf",
-    sourceUrl: "https://example.com/yomutana/backstage",
+    sourceName: "青空文庫",
+    sourceType: "aozora",
+    sourceUrl: "https://www.aozora.gr.jp/cards/000129/card2078.html",
   },
   {
     id: "sample-analysis-1",
-    title: "なぜ私たちは長い感想を読むのか",
-    author: "森下 葵",
+    title: "山月記",
+    author: "中島 敦",
     genre: "長文考察",
     priceType: "無料",
-    description: "読書体験、SNS、批評の距離感をめぐる読み応えのある考察記事。",
-    excerpt: "感想は結論ではなく、もう一度その作品に戻るための細い通路なのかもしれない。",
-    readingMinutes: 28,
-    sourceName: "読む研究室",
-    sourceUrl: "https://example.com/yomutana/long-review",
+    description: "才能と自意識の狭間で虎となった男を通して、人の弱さを見つめる短編小説。",
+    excerpt: "隴西の李徴は博学才穎、天宝の末年、若くして名を虎榜に連ねた。",
+    readingMinutes: 16,
+    sourceName: "青空文庫",
+    sourceType: "aozora",
+    sourceUrl: "https://www.aozora.gr.jp/cards/000119/card624.html",
   },
 ];
 
@@ -208,6 +237,7 @@ const emptyForm: ReadingForm = {
   excerpt: "",
   readingMinutes: 10,
   sourceName: "",
+  sourceType: "manual",
   sourceUrl: "",
 };
 
@@ -222,6 +252,58 @@ function readJson<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function isValidSourceUrl(sourceUrl: string) {
+  const trimmedUrl = sourceUrl.trim();
+
+  if (!trimmedUrl) {
+    return false;
+  }
+
+  try {
+    const url = new URL(trimmedUrl);
+    const hostname = url.hostname.toLowerCase();
+
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      !hostname.includes("example.com") &&
+      !hostname.includes("localhost") &&
+      hostname !== "127.0.0.1" &&
+      hostname !== "::1"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function inferSourceType(item: Pick<ReadingItem, "sourceName" | "sourceUrl">): SourceType {
+  const sourceName = item.sourceName.toLowerCase();
+  const sourceUrl = item.sourceUrl.toLowerCase();
+
+  if (sourceName.includes("青空") || sourceUrl.includes("aozora.gr.jp")) return "aozora";
+  if (sourceName.includes("なろう") || sourceUrl.includes("syosetu.com")) return "narou";
+  if (sourceName.includes("note") || sourceUrl.includes("note.com")) return "note";
+  if (sourceName.includes("カクヨム") || sourceUrl.includes("kakuyomu.jp")) return "kakuyomu";
+  if (sourceName.includes("ブログ") || sourceUrl.includes("blog")) return "blog";
+
+  return "manual";
+}
+
+function hydrateReadingItem(item: ReadingItem): ReadingItem {
+  return {
+    ...item,
+    sourceType: item.sourceType ?? inferSourceType(item),
+  };
+}
+
+function migrateSampleItems(items: ReadingItem[]) {
+  const sampleMap = new Map(sampleItems.map((item) => [item.id, item]));
+
+  return items.map((item) => {
+    const sampleItem = sampleMap.get(item.id);
+    return hydrateReadingItem(sampleItem && !isValidSourceUrl(item.sourceUrl) ? sampleItem : item);
+  });
 }
 
 function getTimeBucket(minutes: number): TimeBucket {
@@ -565,11 +647,12 @@ export function ReadingShelf() {
   const [adminOpen, setAdminOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(itemsPerPage);
   const [collectStatus, setCollectStatus] = useState<CollectStatus>({ type: "idle", message: "" });
+  const [collectSource, setCollectSource] = useState<CollectSource>("all");
   const [todayShelf, setTodayShelf] = useState<TodayShelf | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    setItems(readJson(storageKeys.items, sampleItems));
+    setItems(migrateSampleItems(readJson(storageKeys.items, sampleItems)));
     setFavorites(readJson(storageKeys.favorites, []));
     setReadLater(readJson(storageKeys.readLater, []));
     setReadHistory(readJson(storageKeys.readHistory, []));
@@ -841,18 +924,23 @@ export function ReadingShelf() {
     setCollectStatus({ type: "loading", message: "読み物を探しています..." });
 
     try {
-      const response = await fetch("/api/collect-readings", { cache: "no-store" });
+      const params = new URLSearchParams({ source: collectSource });
+      const response = await fetch(`/api/collect-readings?${params.toString()}`, { cache: "no-store" });
       const data = (await response.json()) as CollectReadingsResponse;
 
       if (!response.ok) {
         throw new Error(data.error ?? "読み物候補の取得に失敗しました。");
       }
 
-      const collectedItems = data.items ?? [];
-      const existingUrls = new Set(items.map((item) => item.sourceUrl));
+      const collectedItems = (data.items ?? []).map((item) => ({
+        ...item,
+        sourceType: item.sourceType ?? inferSourceType(item),
+        sourceUrl: item.sourceUrl.trim(),
+      }));
+      const existingUrls = new Set(items.map((item) => item.sourceUrl.trim()).filter(isValidSourceUrl));
       const incomingUrls = new Set<string>();
       const newItems = collectedItems.filter((item) => {
-        if (existingUrls.has(item.sourceUrl) || incomingUrls.has(item.sourceUrl)) {
+        if (!isValidSourceUrl(item.sourceUrl) || existingUrls.has(item.sourceUrl) || incomingUrls.has(item.sourceUrl)) {
           return false;
         }
 
@@ -868,7 +956,10 @@ export function ReadingShelf() {
 
       setCollectStatus({
         type: "success",
-        message: `${newItems.length}件追加しました。重複のため${duplicateCount}件は追加しませんでした。`,
+        message:
+          collectedItems.length === 0
+            ? "取得できる読み物がありませんでした"
+            : `${newItems.length}件追加しました。重複またはリンク不備のため${duplicateCount}件は追加しませんでした。${data.failedSources?.length ? ` 取得失敗: ${data.failedSources.join("、")}` : ""}`,
       });
     } catch (error) {
       setCollectStatus({
@@ -893,6 +984,7 @@ export function ReadingShelf() {
       description: form.description.trim(),
       excerpt: form.excerpt.trim(),
       sourceName: form.sourceName.trim(),
+      sourceType: form.sourceType,
       sourceUrl: form.sourceUrl.trim(),
       readingMinutes: Math.max(1, Math.round(Number(form.readingMinutes) || 1)),
     };
@@ -916,6 +1008,7 @@ export function ReadingShelf() {
       excerpt: item.excerpt,
       readingMinutes: item.readingMinutes,
       sourceName: item.sourceName,
+      sourceType: item.sourceType,
       sourceUrl: item.sourceUrl,
     };
     setForm(editableItem);
@@ -1039,6 +1132,20 @@ export function ReadingShelf() {
             </div>
           </div>
           <div className="relative z-10 grid gap-3">
+            <label className="grid gap-2 text-sm font-bold text-[#0E4A7B]">
+              収集元
+              <select
+                value={collectSource}
+                onChange={(event) => setCollectSource(event.target.value as CollectSource)}
+                className="min-h-11 rounded-2xl border border-[#2F9FE8]/20 bg-white/88 px-3 text-sm text-[#17324D] outline-none focus:border-[#2F9FE8] focus:ring-4 focus:ring-[#2F9FE8]/15"
+              >
+                {collectSources.map((source) => (
+                  <option key={source.value} value={source.value}>
+                    {source.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               type="button"
               onClick={collectReadings}
@@ -1142,7 +1249,10 @@ export function ReadingShelf() {
                   style={{ animationDelay: `${index * 0.05}s` }}
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <span className="rounded-full bg-[#DDF3FF] px-3 py-1 text-xs font-bold text-[#0E4A7B]">{item.genre}</span>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-full bg-[#DDF3FF] px-3 py-1 text-xs font-bold text-[#0E4A7B]">{item.genre}</span>
+                      <SourceBadge item={item} />
+                    </div>
                     <span className="inline-flex items-center gap-1 rounded-full bg-[#F7F1E5] px-2 py-1 text-xs font-bold text-[#17324D]">
                       <Clock3 aria-hidden size={14} />
                       {item.readingMinutes}分
@@ -1154,15 +1264,7 @@ export function ReadingShelf() {
                   </div>
                   <p className="line-clamp-3 text-sm leading-6 text-[#17324D]/78">{item.description}</p>
                   <p className="rounded-2xl bg-[#EEF9FF] px-3 py-2 text-xs font-bold text-[#0E4A7B]">{reason}</p>
-                  <a
-                    href={item.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2F9FE8] to-[#0E4A7B] px-3 text-sm font-bold text-white transition hover:brightness-105"
-                  >
-                    <ExternalLink aria-hidden size={17} />
-                    読みに行く
-                  </a>
+                  <SourceLink item={item} label="読みに行く" />
                 </article>
               ))}
             </div>
@@ -1292,6 +1394,7 @@ export function ReadingShelf() {
                     <span className="rounded-full bg-[#F7F1E5] px-3 py-1 text-xs font-bold text-[#17324D]">
                       {recommendation.item.readingMinutes}分
                     </span>
+                    <SourceBadge item={recommendation.item} />
                     <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-900">
                       {recommendation.item.priceType}
                     </span>
@@ -1307,15 +1410,7 @@ export function ReadingShelf() {
                       </span>
                     ))}
                   </div>
-                  <a
-                    href={recommendation.item.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2F9FE8] to-[#0E4A7B] px-3 text-sm font-bold text-white transition hover:brightness-105"
-                  >
-                    <ExternalLink aria-hidden size={17} />
-                    読みに行く
-                  </a>
+                  <SourceLink item={recommendation.item} label="読みに行く" />
                 </article>
               ))}
             </div>
@@ -1333,9 +1428,21 @@ export function ReadingShelf() {
         {adminOpen && (
           <section className="ocean-admin grid gap-5 bg-white/86 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)]">
             <form onSubmit={handleSubmit} className="grid gap-4">
-              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-3">
                 <h2 className="text-2xl font-black text-[#0E4A7B]">{editingId ? "作品を編集" : "作品を登録"}</h2>
                 <div className="flex flex-wrap justify-end gap-2">
+                  <select
+                    value={collectSource}
+                    onChange={(event) => setCollectSource(event.target.value as CollectSource)}
+                    className="min-h-10 rounded-2xl border border-[#2F9FE8]/20 bg-white px-3 text-sm font-bold text-[#0E4A7B] outline-none focus:border-[#2F9FE8] focus:ring-4 focus:ring-[#2F9FE8]/15"
+                    aria-label="収集元"
+                  >
+                    {collectSources.map((source) => (
+                      <option key={source.value} value={source.value}>
+                        {source.label}
+                      </option>
+                    ))}
+                  </select>
                   <button
                     type="button"
                     onClick={collectReadings}
@@ -1396,6 +1503,20 @@ export function ReadingShelf() {
                   required
                 />
                 <TextField label="元サイト名" value={form.sourceName} onChange={(value) => setForm({ ...form, sourceName: value })} required />
+                <label className="grid gap-2 text-sm font-bold text-[#0E4A7B]">
+                  掲載元タイプ
+                  <select
+                    value={form.sourceType}
+                    onChange={(event) => setForm({ ...form, sourceType: event.target.value as SourceType })}
+                    className="min-h-12 rounded-2xl border border-[#2F9FE8]/20 bg-white px-3 text-base text-[#17324D] outline-none focus:border-[#2F9FE8] focus:ring-4 focus:ring-[#2F9FE8]/15"
+                  >
+                    {sourceTypes.map((source) => (
+                      <option key={source.type} value={source.type}>
+                        {source.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <TextField label="元サイトリンク" type="url" value={form.sourceUrl} onChange={(value) => setForm({ ...form, sourceUrl: value })} required />
               </div>
 
@@ -1430,7 +1551,7 @@ export function ReadingShelf() {
                   <div>
                     <p className="font-bold text-[#0E4A7B]">{item.title}</p>
                     <p className="text-sm text-[#667085]">
-                      {item.author} / {item.genre} / {item.priceType}
+                      {item.author} / {item.genre} / {item.priceType} / {item.sourceName}
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -1471,6 +1592,7 @@ export function ReadingShelf() {
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="flex flex-wrap gap-2">
                     <span className="rounded-full bg-[#DDF3FF] px-3 py-1 text-xs font-bold text-[#0E4A7B]">{item.genre}</span>
+                    <SourceBadge item={item} />
                     <span
                       className={`rounded-full px-3 py-1 text-xs font-bold ${
                         item.priceType === "無料" ? "bg-emerald-100 text-emerald-900" : "bg-[#F3E4C8] text-[#17324D]"
@@ -1497,15 +1619,7 @@ export function ReadingShelf() {
                 </div>
 
                 <div className="mt-5 grid gap-2 border-t border-[#2F9FE8]/12 pt-4">
-                  <a
-                    href={item.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2F9FE8] to-[#0E4A7B] px-4 text-base font-bold text-white transition hover:brightness-105"
-                  >
-                    <ExternalLink aria-hidden size={19} />
-                    {item.sourceName}で読む
-                  </a>
+                  <SourceLink item={item} label={`${item.sourceName}で読む`} size="lg" />
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
@@ -1613,6 +1727,46 @@ export function ReadingShelf() {
         </footer>
       </section>
     </main>
+  );
+}
+
+function SourceLink({ item, label, size = "sm" }: { item: ReadingItem; label: string; size?: "sm" | "lg" }) {
+  const validUrl = isValidSourceUrl(item.sourceUrl);
+  const className =
+    size === "lg"
+      ? "inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl px-4 text-base font-bold transition"
+      : "inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl px-3 text-sm font-bold transition";
+
+  if (!validUrl) {
+    return (
+      <span
+        aria-disabled="true"
+        className={`${className} cursor-not-allowed border border-[#2F9FE8]/18 bg-[#EEF9FF] text-[#667085]`}
+      >
+        <ExternalLink aria-hidden size={size === "lg" ? 19 : 17} />
+        リンク未登録
+      </span>
+    );
+  }
+
+  return (
+    <a
+      href={item.sourceUrl.trim()}
+      target="_blank"
+      rel="noreferrer"
+      className={`${className} bg-gradient-to-r from-[#2F9FE8] to-[#0E4A7B] text-white hover:brightness-105`}
+    >
+      <ExternalLink aria-hidden size={size === "lg" ? 19 : 17} />
+      {label}
+    </a>
+  );
+}
+
+function SourceBadge({ item }: { item: ReadingItem }) {
+  return (
+    <span className="rounded-full border border-[#2F9FE8]/18 bg-white/82 px-3 py-1 text-xs font-bold text-[#0E4A7B]">
+      {item.sourceName}
+    </span>
   );
 }
 

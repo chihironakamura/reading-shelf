@@ -20,7 +20,7 @@ import type { ReactNode } from "react";
 
 type Genre = "小説" | "エッセイ" | "旅" | "ホラー" | "仕事" | "沖縄" | "舞台" | "長文考察";
 type PriceType = "無料" | "有料";
-type SourceType = "aozora" | "narou" | "note" | "kakuyomu" | "blog" | "manual";
+type SourceType = "aozora" | "narou" | "note" | "kakuyomu" | "blog" | "hatena" | "manual";
 type CollectSource = "all" | Exclude<SourceType, "manual">;
 
 type ReadingItem = {
@@ -39,7 +39,7 @@ type ReadingItem = {
 
 type ReadingForm = Omit<ReadingItem, "id">;
 type TimeBucket = "5分以内" | "6〜15分" | "16〜30分" | "31分以上";
-type MoodId = "quiet" | "energy" | "travel" | "okinawa" | "lateNight";
+type MoodId = "quiet" | "energy" | "travel" | "okinawa" | "night";
 
 type Recommendation = {
   item: ReadingItem;
@@ -94,6 +94,7 @@ const sourceTypes: Array<{ type: SourceType; label: string }> = [
   { type: "note", label: "note" },
   { type: "kakuyomu", label: "カクヨム" },
   { type: "blog", label: "個人ブログ" },
+  { type: "hatena", label: "はてな個人ブログ" },
   { type: "manual", label: "手動登録" },
 ];
 const collectSources: Array<{ value: CollectSource; label: string }> = [
@@ -102,9 +103,10 @@ const collectSources: Array<{ value: CollectSource; label: string }> = [
   { value: "note", label: "note" },
   { value: "kakuyomu", label: "カクヨム" },
   { value: "blog", label: "個人ブログ" },
+  { value: "hatena", label: "はてな個人ブログ" },
   { value: "aozora", label: "青空文庫" },
 ];
-const sourceTypePriority: SourceType[] = ["narou", "note", "kakuyomu", "blog", "manual", "aozora"];
+const sourceTypePriority: SourceType[] = ["narou", "note", "kakuyomu", "blog", "hatena", "manual", "aozora"];
 const itemsPerPage = 6;
 const todayShelfThemes = ["朝のコーヒー", "静かな夜", "沖縄を感じる", "仕事終わり", "旅に出たい", "考えごと", "夏の海", "雨の日"];
 const moodOptions: MoodOption[] = [
@@ -113,47 +115,47 @@ const moodOptions: MoodOption[] = [
     label: "静か",
     chipLabel: "🌿 静か",
     comment: "今日は静かな波のように、ゆっくり読める文章を並べました。",
-    genreScores: { エッセイ: 5, 小説: 3 },
-    maxMinutes: { minutes: 10, score: 3 },
-    keywords: ["静か", "夜", "雨", "喫茶", "手紙", "記憶"],
-    keywordScore: 3,
+    genreScores: { エッセイ: 8, 小説: 4 },
+    maxMinutes: { minutes: 10, score: 4 },
+    keywords: ["静か", "夜", "雨", "喫茶", "手紙", "記憶", "散歩", "海辺", "午後"],
+    keywordScore: 5,
   },
   {
     id: "energy",
     label: "元気",
     chipLabel: "🔥 元気",
     comment: "少し前を向けるような、背中を押す文章を集めました。",
-    genreScores: { 仕事: 4, 長文考察: 2 },
-    keywords: ["挑戦", "成長", "仕事", "未来", "前向き", "旅立ち"],
-    keywordScore: 4,
+    genreScores: { 仕事: 6, 長文考察: 3 },
+    keywords: ["挑戦", "成長", "仕事", "未来", "前向き", "旅立ち", "始める", "変化"],
+    keywordScore: 6,
   },
   {
     id: "travel",
     label: "旅",
     chipLabel: "✈️ 旅",
     comment: "遠くへ行きたくなる文章を、海風と一緒に並べました。",
-    genreScores: { 旅: 6, 沖縄: 3 },
-    keywords: ["旅", "旅行", "海", "島", "港", "駅", "空", "道"],
-    keywordScore: 4,
+    genreScores: { 旅: 10, 沖縄: 4 },
+    keywords: ["旅", "旅行", "海", "島", "港", "駅", "空", "道", "宿", "街歩き"],
+    keywordScore: 6,
   },
   {
     id: "okinawa",
     label: "沖縄",
     chipLabel: "🏝 沖縄",
     comment: "島の空気を感じる文章を集めました。",
-    genreScores: { 沖縄: 8, 旅: 3 },
-    keywords: ["沖縄", "那覇", "琉球", "島", "海", "南国", "港"],
-    keywordScore: 5,
+    genreScores: { 沖縄: 12, 旅: 4 },
+    keywords: ["沖縄", "那覇", "琉球", "島", "海", "南国", "港", "離島", "やちむん", "泡盛"],
+    keywordScore: 8,
   },
   {
-    id: "lateNight",
+    id: "night",
     label: "夜更かし",
     chipLabel: "🌙 夜更かし",
     comment: "眠れない夜に寄り添う文章を並べました。",
-    genreScores: { 小説: 4, ホラー: 3, 長文考察: 4 },
-    minMinutes: { minutes: 15, score: 3 },
-    keywords: ["夜", "深夜", "月", "眠れない", "夢", "怪談", "孤独"],
-    keywordScore: 4,
+    genreScores: { 小説: 6, ホラー: 5, 長文考察: 5 },
+    minMinutes: { minutes: 15, score: 5 },
+    keywords: ["夜", "深夜", "月", "眠れない", "夢", "怪談", "孤独", "静寂"],
+    keywordScore: 7,
   },
 ];
 
@@ -333,6 +335,7 @@ function inferSourceType(item: Pick<ReadingItem, "sourceName" | "sourceUrl">): S
   if (sourceName.includes("なろう") || sourceUrl.includes("syosetu.com")) return "narou";
   if (sourceName.includes("note") || sourceUrl.includes("note.com")) return "note";
   if (sourceName.includes("カクヨム") || sourceUrl.includes("kakuyomu.jp")) return "kakuyomu";
+  if (sourceName.includes("はてな") || sourceUrl.includes("hatenablog.com") || sourceUrl.includes("hatenadiary.jp")) return "hatena";
   if (sourceName.includes("ブログ") || sourceUrl.includes("blog")) return "blog";
 
   return "manual";
@@ -402,6 +405,10 @@ function rotateBySeed<T>(items: T[], seed: number) {
 
 function readSavedMood() {
   const savedMood = readJson<unknown>(storageKeys.selectedMood, null);
+  if (savedMood === "lateNight") {
+    return "night";
+  }
+
   return moodOptions.some((mood) => mood.id === savedMood) ? (savedMood as MoodId) : null;
 }
 
@@ -436,7 +443,7 @@ function calculateMoodScore(item: ReadingItem, moodId: MoodId | null) {
 }
 
 function getTodayShelfMoodKey(moodId: MoodId | null) {
-  return moodId ?? "default";
+  return moodId ?? "normal";
 }
 
 function readTodayShelfByMood() {
@@ -604,7 +611,8 @@ function createTodayShelf(
           popularBonus +
           newItemBonus +
           themeBonus +
-          moodBonus * (moodId ? 25 : 1) +
+          moodBonus * (moodId ? 2 : 1) +
+          (moodId && moodBonus === 0 ? -100 : 0) +
           seedBonus,
       };
     });
@@ -690,7 +698,7 @@ function buildRecommendations(
       let score = 0;
 
       if (moodScore > 0 && mood) {
-        score += moodScore * 10;
+        score += moodScore * 2;
         reasons.push(`今日の気分「${mood.label}」に合うため`);
       }
 
@@ -754,6 +762,10 @@ function buildRecommendations(
         reasons.push("まだ読んでいない棚から幅を広げるため");
       }
 
+      if (moodId && moodScore === 0) {
+        score -= 100;
+      }
+
       const stableVariation = ((index + 1) * (seed + 3)) % 7;
 
       return {
@@ -786,6 +798,8 @@ export function ReadingShelf() {
   const [todayShelf, setTodayShelf] = useState<TodayShelf | null>(null);
   const [storageReady, setStorageReady] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const todayShelfRef = useRef<HTMLElement | null>(null);
+  const [moodSwitchMessage, setMoodSwitchMessage] = useState("");
 
   useEffect(() => {
     setItems(migrateSampleItems(readJson(storageKeys.items, sampleItems)));
@@ -910,8 +924,8 @@ export function ReadingShelf() {
         const bScore = itemScoreMap.get(b.id);
         const aMoodScore = selectedMood ? calculateMoodScore(a, selectedMood) : 0;
         const bMoodScore = selectedMood ? calculateMoodScore(b, selectedMood) : 0;
-        const aFinalScore = (aScore?.score ?? 0) + aMoodScore * 20;
-        const bFinalScore = (bScore?.score ?? 0) + bMoodScore * 20;
+        const aFinalScore = (aScore?.score ?? 0) + aMoodScore * 2 + (selectedMood && aMoodScore === 0 ? -100 : 0);
+        const bFinalScore = (bScore?.score ?? 0) + bMoodScore * 2 + (selectedMood && bMoodScore === 0 ? -100 : 0);
 
         if (bFinalScore !== aFinalScore) {
           return bFinalScore - aFinalScore;
@@ -1083,6 +1097,10 @@ export function ReadingShelf() {
     setTodayShelf(nextShelf);
     saveTodayShelfByMood(moodId, nextShelf);
     setVisibleCount(itemsPerPage);
+    setMoodSwitchMessage(moodId ? `${getMoodOption(moodId)?.label ?? "気分"}の棚に替えました。` : "いつもの棚に戻しました。");
+    window.setTimeout(() => {
+      todayShelfRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
   }
 
   async function collectReadings() {
@@ -1294,6 +1312,9 @@ export function ReadingShelf() {
               <p className="max-w-2xl text-base leading-8 text-[#17324D]/78 sm:text-lg">
                 小説、エッセイ、旅の記録、長文考察まで。本文全文は保存せず、読みに行くための入口だけを爽やかに並べます。
               </p>
+              <p className="max-w-2xl rounded-2xl border border-[#2F9FE8]/18 bg-white/70 px-4 py-3 text-sm font-bold leading-6 text-[#0E4A7B]">
+                読む棚編集部：ニュースより物語を。更新情報よりエッセイを。速さより余韻を。
+              </p>
             </div>
           </div>
           <div className="relative z-10 grid gap-3">
@@ -1383,6 +1404,11 @@ export function ReadingShelf() {
               {selectedMoodOption.comment}
             </p>
           )}
+          {moodSwitchMessage && (
+            <p className="rounded-2xl border border-[#2F9FE8]/18 bg-white/82 px-4 py-3 text-sm font-bold leading-6 text-[#0E4A7B]">
+              {moodSwitchMessage}
+            </p>
+          )}
         </section>
 
         {collectStatus.message && (
@@ -1397,7 +1423,7 @@ export function ReadingShelf() {
           </p>
         )}
 
-        <section id="today-shelf" className="today-shelf grid scroll-mt-8 gap-6 p-5 sm:p-6 lg:p-7">
+        <section ref={todayShelfRef} id="today-shelf" className="today-shelf grid scroll-mt-8 gap-6 p-5 sm:p-6 lg:p-7">
           <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-3">

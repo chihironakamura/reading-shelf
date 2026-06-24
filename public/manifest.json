@@ -1,7 +1,7 @@
 {
   "name": "読む棚",
   "short_name": "読む棚",
-  "description": "小説、エッセイ、長文投稿などをジャンルごとに整理して紹介する読み物キュレーションアプリです。",
+  "description": "AIが毎日あなたのために小さな本棚をつくる、新しい読書キュレーションサービス。",
   "lang": "ja",
   "start_url": "/",
   "scope": "/",
@@ -11,13 +11,13 @@
   "theme_color": "#ddf3ff",
   "icons": [
     {
-      "src": "/icons/icon-192.png",
+      "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/icon-512.png",
+      "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

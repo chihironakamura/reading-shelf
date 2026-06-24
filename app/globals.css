@@ -120,6 +120,35 @@ svg {
   box-shadow: 0 22px 70px rgba(14, 74, 123, 0.12);
 }
 
+.prelaunch-footer {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  padding: 52px 24px 56px;
+  border-top: 1px solid rgba(47, 159, 232, 0.22);
+  border-radius: 28px 28px 0 0;
+  background: linear-gradient(180deg, rgba(247, 241, 229, 0.86), rgba(243, 228, 200, 0.96));
+  color: #0e4a7b;
+  text-align: center;
+  box-shadow: 0 -18px 52px rgba(14, 74, 123, 0.08);
+}
+
+.prelaunch-footer::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 24px;
+  opacity: 0.42;
+  background: repeating-radial-gradient(ellipse at 50% 0%, transparent 0 1.18rem, rgba(47, 159, 232, 0.58) 1.24rem 1.34rem, transparent 1.42rem 2.45rem);
+  content: "";
+}
+
+.prelaunch-footer > * {
+  position: relative;
+  z-index: 1;
+}
+
 .ocean-hero {
   position: relative;
   overflow: hidden;
@@ -151,6 +180,30 @@ svg {
     radial-gradient(ellipse at 22% 100%, transparent 0 54%, rgba(14, 74, 123, 0.34) 55% 60%, transparent 61%),
     radial-gradient(ellipse at 78% 100%, transparent 0 54%, rgba(14, 74, 123, 0.34) 55% 60%, transparent 61%);
   content: "";
+}
+
+.beta-banner {
+  width: 100%;
+  max-width: 680px;
+  margin-inline: auto;
+  padding: 12px 24px;
+  border: 1px solid rgba(47, 159, 232, 0.24);
+  border-radius: 9999px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(221, 243, 255, 0.86));
+  box-shadow: 0 14px 42px rgba(14, 74, 123, 0.08);
+  text-align: center;
+  animation: betaBannerIn 400ms ease-out both;
+}
+
+@keyframes betaBannerIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .ocean-panel {
@@ -314,7 +367,8 @@ svg {
     scroll-behavior: auto;
   }
 
-  .result-card {
+  .result-card,
+  .beta-banner {
     animation: none;
   }
 

@@ -1037,6 +1037,13 @@ export function ReadingShelf() {
           </div>
         </header>
 
+        <section className="beta-banner" aria-label="公開前Betaのお知らせ">
+          <p className="text-sm font-black text-[#0E4A7B] sm:text-base">🌊 Beta</p>
+          <p className="text-sm font-semibold leading-6 text-[#17324D]/76 sm:text-base">
+            毎日、新しい文章との出会いを育てています。
+          </p>
+        </section>
+
         <section key={selectedMood} className="mood-card grid gap-4 p-5 sm:p-6 lg:grid-cols-[minmax(0,0.34fr)_minmax(0,1fr)] lg:items-center">
           <div className="space-y-2">
             <p className="text-sm font-black text-[#2F9FE8]">今日の気分</p>
@@ -1568,6 +1575,13 @@ export function ReadingShelf() {
             )}
           </section>
         )}
+
+        <footer className="prelaunch-footer">
+          <p className="text-xl font-black text-[#0E4A7B] sm:text-2xl">読む棚</p>
+          <p className="text-base font-bold leading-7 text-[#17324D] sm:text-lg">今日も、いい文章と出会おう。</p>
+          <p className="text-sm font-semibold leading-7 text-[#17324D]/78 sm:text-base">波のように、新しい物語が流れ着く。</p>
+          <p className="text-xs font-bold text-[#0E4A7B]/68 sm:text-sm">© 2026 読む棚</p>
+        </footer>
       </section>
     </main>
   );

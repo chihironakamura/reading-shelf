@@ -39,7 +39,7 @@ type ReadingItem = {
 
 type ReadingForm = Omit<ReadingItem, "id">;
 type TimeBucket = "5分以内" | "6〜15分" | "16〜30分" | "31分以上";
-type MoodId = "calm" | "coffee" | "travel" | "okinawa" | "work" | "night" | "think" | "refresh";
+type MoodId = "quiet" | "energy" | "travel" | "okinawa" | "lateNight";
 
 type Recommendation = {
   item: ReadingItem;
@@ -64,6 +64,7 @@ type TodayShelf = {
   theme: string;
   ids: string[];
   seed: number;
+  moodId?: MoodId | null;
 };
 
 type TodayShelfCard = {
@@ -74,9 +75,13 @@ type TodayShelfCard = {
 type MoodOption = {
   id: MoodId;
   label: string;
+  chipLabel: string;
   comment: string;
-  genres: Genre[];
-  maxMinutes?: number;
+  genreScores: Partial<Record<Genre, number>>;
+  keywords: string[];
+  keywordScore: number;
+  maxMinutes?: { minutes: number; score: number };
+  minMinutes?: { minutes: number; score: number };
 };
 
 const genres: Genre[] = ["小説", "エッセイ", "旅", "ホラー", "仕事", "沖縄", "舞台", "長文考察"];
@@ -100,14 +105,53 @@ const collectSources: Array<{ value: CollectSource; label: string }> = [
 const itemsPerPage = 6;
 const todayShelfThemes = ["朝のコーヒー", "静かな夜", "沖縄を感じる", "仕事終わり", "旅に出たい", "考えごと", "夏の海", "雨の日"];
 const moodOptions: MoodOption[] = [
-  { id: "calm", label: "静かに読みたい", comment: "波音みたいに穏やかな文章を多めに選びます。", genres: ["エッセイ", "小説"], maxMinutes: 15 },
-  { id: "coffee", label: "カフェ時間", comment: "短めで余韻の残る読み物を優先します。", genres: ["エッセイ", "仕事"], maxMinutes: 10 },
-  { id: "travel", label: "旅に出たい", comment: "海や遠くの街を感じる棚に整えます。", genres: ["旅", "沖縄"] },
-  { id: "okinawa", label: "沖縄を感じる", comment: "島の空気をまとった文章を引き寄せます。", genres: ["沖縄", "旅"] },
-  { id: "work", label: "仕事終わり", comment: "働く気持ちをほどく文章を選びます。", genres: ["仕事", "エッセイ"], maxMinutes: 15 },
-  { id: "night", label: "静かな夜", comment: "夜にゆっくり沈める物語を増やします。", genres: ["小説", "ホラー"] },
-  { id: "think", label: "考えごと", comment: "少し深く潜れる考察や文化の文章を優先します。", genres: ["長文考察", "エッセイ"] },
-  { id: "refresh", label: "気分転換", comment: "いつもと違うジャンルに出会いやすくします。", genres: ["旅", "舞台", "小説"] },
+  {
+    id: "quiet",
+    label: "静か",
+    chipLabel: "🌿 静か",
+    comment: "今日は静かな波のように、ゆっくり読める文章を並べました。",
+    genreScores: { エッセイ: 5, 小説: 3 },
+    maxMinutes: { minutes: 10, score: 3 },
+    keywords: ["静か", "夜", "雨", "喫茶", "手紙", "記憶"],
+    keywordScore: 3,
+  },
+  {
+    id: "energy",
+    label: "元気",
+    chipLabel: "🔥 元気",
+    comment: "少し前を向けるような、背中を押す文章を集めました。",
+    genreScores: { 仕事: 4, 長文考察: 2 },
+    keywords: ["挑戦", "成長", "仕事", "未来", "前向き", "旅立ち"],
+    keywordScore: 4,
+  },
+  {
+    id: "travel",
+    label: "旅",
+    chipLabel: "✈️ 旅",
+    comment: "遠くへ行きたくなる文章を、海風と一緒に並べました。",
+    genreScores: { 旅: 6, 沖縄: 3 },
+    keywords: ["旅", "旅行", "海", "島", "港", "駅", "空", "道"],
+    keywordScore: 4,
+  },
+  {
+    id: "okinawa",
+    label: "沖縄",
+    chipLabel: "🏝 沖縄",
+    comment: "島の空気を感じる文章を集めました。",
+    genreScores: { 沖縄: 8, 旅: 3 },
+    keywords: ["沖縄", "那覇", "琉球", "島", "海", "南国", "港"],
+    keywordScore: 5,
+  },
+  {
+    id: "lateNight",
+    label: "夜更かし",
+    chipLabel: "🌙 夜更かし",
+    comment: "眠れない夜に寄り添う文章を並べました。",
+    genreScores: { 小説: 4, ホラー: 3, 長文考察: 4 },
+    minMinutes: { minutes: 15, score: 3 },
+    keywords: ["夜", "深夜", "月", "眠れない", "夢", "怪談", "孤独"],
+    keywordScore: 4,
+  },
 ];
 
 const storageKeys = {
@@ -352,20 +396,36 @@ function rotateBySeed<T>(items: T[], seed: number) {
   return [...items.slice(start), ...items.slice(0, start)];
 }
 
-function getMoodOption(moodId: MoodId) {
-  return moodOptions.find((mood) => mood.id === moodId) ?? moodOptions[0];
+function readSavedMood() {
+  const savedMood = readJson<unknown>(storageKeys.selectedMood, null);
+  return moodOptions.some((mood) => mood.id === savedMood) ? (savedMood as MoodId) : null;
 }
 
-function getMoodScore(item: ReadingItem, moodId: MoodId) {
-  const mood = getMoodOption(moodId);
-  let score = 0;
+function getMoodOption(moodId: MoodId | null) {
+  return moodId ? moodOptions.find((mood) => mood.id === moodId) ?? null : null;
+}
 
-  if (mood.genres.includes(item.genre)) {
-    score += 4;
+function getMoodScore(item: ReadingItem, moodId: MoodId | null) {
+  const mood = getMoodOption(moodId);
+  if (!mood) {
+    return 0;
   }
 
-  if (mood.maxMinutes && item.readingMinutes <= mood.maxMinutes) {
-    score += 2;
+  const searchableText = [item.title, item.author, item.genre, item.description, item.excerpt, item.sourceName].join(" ");
+  let score = 0;
+
+  score += mood.genreScores[item.genre] ?? 0;
+
+  if (mood.maxMinutes && item.readingMinutes <= mood.maxMinutes.minutes) {
+    score += mood.maxMinutes.score;
+  }
+
+  if (mood.minMinutes && item.readingMinutes >= mood.minMinutes.minutes) {
+    score += mood.minMinutes.score;
+  }
+
+  if (mood.keywords.some((keyword) => searchableText.includes(keyword))) {
+    score += mood.keywordScore;
   }
 
   return score;
@@ -376,13 +436,13 @@ function getTodayShelfReason(
   favorites: string[],
   readLater: string[],
   readItems: ReadingItem[],
-  moodId: MoodId,
+  moodId: MoodId | null,
 ) {
   const mood = getMoodOption(moodId);
   const favoriteGenre = readItems.find((readItem) => favorites.includes(readItem.id))?.genre;
   const savedTimeBucket = readItems.find((readItem) => readLater.includes(readItem.id));
 
-  if (mood.genres.includes(item.genre)) {
+  if (mood && getMoodScore(item, mood.id) > 0) {
     return `今日の気分「${mood.label}」に合う一冊です`;
   }
 
@@ -416,10 +476,10 @@ function createTodayShelf(
   favorites: string[],
   readLater: string[],
   date: string,
-  moodId: MoodId,
+  moodId: MoodId | null,
   seedOffset = 0,
 ): TodayShelf {
-  const seed = seedFromText(`${date}-${moodId}`) + seedOffset;
+  const seed = seedFromText(`${date}-${moodId ?? "default"}`) + seedOffset;
   const readSet = new Set(readHistory);
   const readItems = items.filter((item) => readSet.has(item.id));
   const readGenres = new Set(readItems.map((item) => item.genre));
@@ -477,6 +537,7 @@ function createTodayShelf(
     theme,
     ids: selected.map((item) => item.id),
     seed,
+    moodId,
   };
 }
 
@@ -497,7 +558,7 @@ function buildRecommendations(
   favorites: string[],
   readLater: string[],
   seed: number,
-  moodId: MoodId,
+  moodId: MoodId | null,
 ): Recommendation[] {
   const readSet = new Set(readHistory);
   const favoriteSet = new Set(favorites);
@@ -547,16 +608,12 @@ function buildRecommendations(
       const reasons: string[] = [];
       const timeBucket = getTimeBucket(item.readingMinutes);
       const mood = getMoodOption(moodId);
+      const moodScore = getMoodScore(item, moodId);
       let score = 0;
 
-      if (mood.genres.includes(item.genre)) {
-        score += 3;
+      if (moodScore > 0 && mood) {
+        score += moodScore;
         reasons.push(`今日の気分「${mood.label}」に合うため`);
-      }
-
-      if (mood.maxMinutes && item.readingMinutes <= mood.maxMinutes) {
-        score += 2;
-        reasons.push(`${mood.maxMinutes}分以内の気分に合うため`);
       }
 
       if ((genreScores[item.genre] ?? 0) > 0) {
@@ -636,7 +693,7 @@ export function ReadingShelf() {
   const [readLater, setReadLater] = useState<string[]>([]);
   const [readHistory, setReadHistory] = useState<string[]>([]);
   const [recommendationSeed, setRecommendationSeed] = useState(0);
-  const [selectedMood, setSelectedMood] = useState<MoodId>("calm");
+  const [selectedMood, setSelectedMood] = useState<MoodId | null>(null);
   const [query, setQuery] = useState("");
   const [genreFilter, setGenreFilter] = useState<Genre | "すべて">("すべて");
   const [priceFilter, setPriceFilter] = useState<PriceType | "すべて">("すべて");
@@ -649,6 +706,7 @@ export function ReadingShelf() {
   const [collectStatus, setCollectStatus] = useState<CollectStatus>({ type: "idle", message: "" });
   const [collectSource, setCollectSource] = useState<CollectSource>("all");
   const [todayShelf, setTodayShelf] = useState<TodayShelf | null>(null);
+  const [storageReady, setStorageReady] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -657,7 +715,8 @@ export function ReadingShelf() {
     setReadLater(readJson(storageKeys.readLater, []));
     setReadHistory(readJson(storageKeys.readHistory, []));
     setRecommendationSeed(readJson(storageKeys.recommendationSeed, 0));
-    setSelectedMood(readJson(storageKeys.selectedMood, "calm"));
+    setSelectedMood(readSavedMood());
+    setStorageReady(true);
   }, []);
 
   useEffect(() => {
@@ -681,28 +740,52 @@ export function ReadingShelf() {
   }, []);
 
   useEffect(() => {
+    if (!storageReady) {
+      return;
+    }
+
     window.localStorage.setItem(storageKeys.items, JSON.stringify(items));
-  }, [items]);
+  }, [items, storageReady]);
 
   useEffect(() => {
+    if (!storageReady) {
+      return;
+    }
+
     window.localStorage.setItem(storageKeys.favorites, JSON.stringify(favorites));
-  }, [favorites]);
+  }, [favorites, storageReady]);
 
   useEffect(() => {
+    if (!storageReady) {
+      return;
+    }
+
     window.localStorage.setItem(storageKeys.readLater, JSON.stringify(readLater));
-  }, [readLater]);
+  }, [readLater, storageReady]);
 
   useEffect(() => {
+    if (!storageReady) {
+      return;
+    }
+
     window.localStorage.setItem(storageKeys.readHistory, JSON.stringify(readHistory));
-  }, [readHistory]);
+  }, [readHistory, storageReady]);
 
   useEffect(() => {
+    if (!storageReady) {
+      return;
+    }
+
     window.localStorage.setItem(storageKeys.recommendationSeed, JSON.stringify(recommendationSeed));
-  }, [recommendationSeed]);
+  }, [recommendationSeed, storageReady]);
 
   useEffect(() => {
+    if (!storageReady) {
+      return;
+    }
+
     window.localStorage.setItem(storageKeys.selectedMood, JSON.stringify(selectedMood));
-  }, [selectedMood]);
+  }, [selectedMood, storageReady]);
 
   const listRanking = useMemo(
     () => buildRecommendations(items, readHistory, favorites, readLater, 0, selectedMood),
@@ -813,7 +896,7 @@ export function ReadingShelf() {
 
   useEffect(() => {
     setVisibleCount(itemsPerPage);
-  }, [genreFilter, priceFilter, query, showReadItems, viewFilter]);
+  }, [genreFilter, priceFilter, query, selectedMood, showReadItems, viewFilter]);
 
   useEffect(() => {
     setVisibleCount((current) => {
@@ -855,11 +938,15 @@ export function ReadingShelf() {
   }, [hasMoreItems, loadMoreItems]);
 
   useEffect(() => {
+    if (!storageReady) {
+      return;
+    }
+
     const date = getTodayDateKey();
     const savedDate = window.localStorage.getItem(storageKeys.todayShelfDate);
     const savedShelf = readJson<TodayShelf | null>(storageKeys.todayShelf, null);
 
-    if (savedDate === date && savedShelf) {
+    if (savedDate === date && savedShelf && (savedShelf.moodId ?? null) === selectedMood) {
       setTodayShelf(savedShelf);
       return;
     }
@@ -868,7 +955,7 @@ export function ReadingShelf() {
     setTodayShelf(nextShelf);
     window.localStorage.setItem(storageKeys.todayShelf, JSON.stringify(nextShelf));
     window.localStorage.setItem(storageKeys.todayShelfDate, date);
-  }, [favorites, items, readHistory, readLater, recommendationCandidates, selectedMood]);
+  }, [favorites, items, readHistory, readLater, recommendationCandidates, selectedMood, storageReady]);
 
   function toggleList(id: string, setter: (value: string[]) => void, current: string[]) {
     setter(current.includes(id) ? current.filter((savedId) => savedId !== id) : [...current, id]);
@@ -907,7 +994,7 @@ export function ReadingShelf() {
     window.localStorage.setItem(storageKeys.todayShelfDate, date);
   }
 
-  function selectMood(moodId: MoodId) {
+  function selectMood(moodId: MoodId | null) {
     setSelectedMood(moodId);
     window.localStorage.setItem(storageKeys.selectedMood, JSON.stringify(moodId));
 
@@ -1180,28 +1267,44 @@ export function ReadingShelf() {
           </p>
         </section>
 
-        <section key={selectedMood} className="mood-card grid gap-4 p-5 sm:p-6 lg:grid-cols-[minmax(0,0.34fr)_minmax(0,1fr)] lg:items-center">
-          <div className="space-y-2">
-            <p className="text-sm font-black text-[#2F9FE8]">今日の気分</p>
-            <h2 className="text-2xl font-black text-[#0E4A7B]">{selectedMoodOption.label}</h2>
-            <p className="text-sm font-semibold leading-6 text-[#667085]">{selectedMoodOption.comment}</p>
-          </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 lg:flex-wrap lg:justify-end lg:overflow-visible lg:pb-0">
-            {moodOptions.map((mood) => (
+        <section key={selectedMood ?? "default"} className="mood-card grid gap-4 p-5 sm:p-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-2">
+              <p className="text-sm font-black text-[#2F9FE8]">今の気分で棚替え</p>
+              <h2 className="text-2xl font-black text-[#0E4A7B]">
+                {selectedMoodOption ? `${selectedMoodOption.label}の棚` : "いつもの棚"}
+              </h2>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1 lg:flex-wrap lg:justify-end lg:overflow-visible lg:pb-0">
+              {moodOptions.map((mood) => (
+                <button
+                  key={mood.id}
+                  type="button"
+                  aria-pressed={selectedMood === mood.id}
+                  onClick={() => selectMood(mood.id)}
+                  className={`min-h-11 shrink-0 rounded-full border px-4 text-sm font-bold transition ${
+                    selectedMood === mood.id
+                      ? "border-[#2F9FE8] bg-gradient-to-r from-[#2F9FE8] to-[#0E4A7B] text-white shadow-sm"
+                      : "border-[#2F9FE8]/20 bg-white/82 text-[#0E4A7B] hover:border-[#2F9FE8] hover:bg-[#DDF3FF]"
+                  }`}
+                >
+                  {mood.chipLabel}
+                </button>
+              ))}
               <button
-                key={mood.id}
                 type="button"
-                onClick={() => selectMood(mood.id)}
-                className={`min-h-11 shrink-0 rounded-full border px-4 text-sm font-bold transition ${
-                  selectedMood === mood.id
-                    ? "border-[#2F9FE8] bg-gradient-to-r from-[#2F9FE8] to-[#0E4A7B] text-white shadow-sm"
-                    : "border-[#2F9FE8]/20 bg-white/82 text-[#0E4A7B] hover:border-[#2F9FE8] hover:bg-[#DDF3FF]"
-                }`}
+                onClick={() => selectMood(null)}
+                className="min-h-11 shrink-0 rounded-full border border-[#2F9FE8]/20 bg-white/82 px-4 text-sm font-bold text-[#0E4A7B] transition hover:border-[#2F9FE8] hover:bg-[#DDF3FF]"
               >
-                {mood.label}
+                解除
               </button>
-            ))}
+            </div>
           </div>
+          {selectedMoodOption && (
+            <p className="rounded-2xl border border-[#2F9FE8]/18 bg-[#EEF9FF]/88 px-4 py-3 text-sm font-bold leading-6 text-[#0E4A7B]">
+              {selectedMoodOption.comment}
+            </p>
+          )}
         </section>
 
         {collectStatus.message && (

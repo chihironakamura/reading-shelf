@@ -1,4 +1,5 @@
-const CACHE_NAME = "reading-shelf-cache-v010";
+const CACHE_VERSION = "v010";
+const CACHE_NAME = `reading-shelf-cache-${CACHE_VERSION}`;
 const APP_SHELL = ["/manifest.json", "/favicon.ico", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {

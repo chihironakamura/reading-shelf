@@ -134,7 +134,6 @@ const excludeKeywords = [
   "リリース",
   "アップデート",
   "更新情報",
-  "お知らせ",
   "仕様変更",
   "API",
   "CMS",
@@ -549,6 +548,7 @@ export async function GET(request: NextRequest) {
   ];
   const activeCollectors = selectedSource === "all" ? collectors : collectors.filter((collector) => collector.source === selectedSource);
   const failedSources: string[] = [];
+  const failedSourceDetails: string[] = [];
   const collected: ReadingItem[] = [];
 
   await Promise.all(
@@ -558,18 +558,23 @@ export async function GET(request: NextRequest) {
       } catch (error) {
         console.error(`${collector.label} collection failed`, error);
         failedSources.push(collector.label);
+        failedSourceDetails.push(`${collector.label}: ${error instanceof Error ? error.message : "取得に失敗しました"}`);
       }
     }),
   );
 
   const usefulItems = dedupeByUrl(collected).filter(isEditoriallyUsefulItem);
   const items = balanceBySource(usefulItems, MAX_ITEMS);
+  const sourceCounts = items.reduce<Partial<Record<SourceType, number>>>((counts, item) => {
+    counts[item.sourceType] = (counts[item.sourceType] ?? 0) + 1;
+    return counts;
+  }, {});
   const message =
     items.length === 0
       ? "取得できる読み物がありませんでした"
       : failedSources.length > 0
-        ? `${sourceLabel(selectedSource)}から${items.length}件取得しました。一部取得に失敗: ${failedSources.join("、")}`
+        ? `${sourceLabel(selectedSource)}から${items.length}件取得しました。一部取得に失敗: ${failedSourceDetails.join(" / ")}`
         : `${sourceLabel(selectedSource)}から${items.length}件取得しました。`;
 
-  return NextResponse.json({ items, failedSources, message });
+  return NextResponse.json({ items, failedSources, failedSourceDetails, sourceCounts, message });
 }

@@ -57,6 +57,8 @@ type CollectReadingsResponse = {
   error?: string;
   message?: string;
   failedSources?: string[];
+  failedSourceDetails?: string[];
+  sourceCounts?: Partial<Record<SourceType, number>>;
 };
 
 type TodayShelf = {
@@ -107,6 +109,28 @@ const collectSources: Array<{ value: CollectSource; label: string }> = [
   { value: "aozora", label: "青空文庫" },
 ];
 const sourceTypePriority: SourceType[] = ["narou", "note", "kakuyomu", "blog", "hatena", "manual", "aozora"];
+const editorialKeywords = [
+  "旅",
+  "沖縄",
+  "エッセイ",
+  "コラム",
+  "散歩",
+  "喫茶店",
+  "海",
+  "島",
+  "暮らし",
+  "働き方",
+  "人生",
+  "本",
+  "映画",
+  "音楽",
+  "写真",
+  "カルチャー",
+  "小説",
+  "読書",
+  "日記",
+  "随筆",
+];
 const itemsPerPage = 6;
 const todayShelfThemes = ["朝のコーヒー", "静かな夜", "沖縄を感じる", "仕事終わり", "旅に出たい", "考えごと", "夏の海", "雨の日"];
 const moodOptions: MoodOption[] = [
@@ -442,6 +466,48 @@ function calculateMoodScore(item: ReadingItem, moodId: MoodId | null) {
   return score;
 }
 
+function calculateEditorialScore(item: ReadingItem) {
+  const text = [item.title, item.description, item.excerpt, item.sourceName].join(" ");
+  let score = 0;
+
+  editorialKeywords.forEach((keyword) => {
+    if (text.includes(keyword)) {
+      score += 2;
+    }
+  });
+
+  if (item.sourceType === "note" || item.sourceType === "blog" || item.sourceType === "hatena") {
+    score += 4;
+  }
+
+  if (item.sourceType === "aozora") {
+    score -= 1;
+  }
+
+  return score;
+}
+
+function formatSourceCounts(sourceCounts: Partial<Record<SourceType, number>> | undefined) {
+  if (!sourceCounts) {
+    return "";
+  }
+
+  const labels: Record<SourceType, string> = {
+    aozora: "青空文庫",
+    narou: "なろう",
+    note: "note",
+    kakuyomu: "カクヨム",
+    blog: "個人ブログ",
+    hatena: "はてな",
+    manual: "手動",
+  };
+
+  return sourceTypePriority
+    .filter((sourceType) => (sourceCounts[sourceType] ?? 0) > 0)
+    .map((sourceType) => `${labels[sourceType]}${sourceCounts[sourceType]}件`)
+    .join(" / ");
+}
+
 function getTodayShelfMoodKey(moodId: MoodId | null) {
   return moodId ?? "normal";
 }
@@ -594,6 +660,7 @@ function createTodayShelf(
       const popularBonus = (favorites.includes(item.id) ? 2 : 0) + (readLater.includes(item.id) ? 1 : 0);
       const newItemBonus = Math.max(0, 2 - index * 0.05);
       const moodBonus = calculateMoodScore(item, moodId);
+      const editorialScore = calculateEditorialScore(item);
       const themeBonus =
         (theme.includes("沖縄") && item.genre === "沖縄") ||
         (theme.includes("旅") && item.genre === "旅") ||
@@ -605,15 +672,9 @@ function createTodayShelf(
 
       return {
         item,
-        score:
-          (moodId ? aiScore : aiScore * 10) +
-          quietGenreBonus +
-          popularBonus +
-          newItemBonus +
-          themeBonus +
-          moodBonus * (moodId ? 2 : 1) +
-          (moodId && moodBonus === 0 ? -100 : 0) +
-          seedBonus,
+        score: moodId
+          ? moodBonus * 10 + editorialScore * 3 + aiScore + (moodBonus === 0 ? -1000 : 0) + seedBonus
+          : aiScore * 10 + quietGenreBonus + popularBonus + newItemBonus + themeBonus + editorialScore + seedBonus,
       };
     });
   const selected = selectDiverseBySource(scoredItems, 6).map(({ item }) => item);
@@ -695,12 +756,15 @@ function buildRecommendations(
       const timeBucket = getTimeBucket(item.readingMinutes);
       const mood = getMoodOption(moodId);
       const moodScore = calculateMoodScore(item, moodId);
+      const editorialScore = calculateEditorialScore(item);
       let score = 0;
 
       if (moodScore > 0 && mood) {
-        score += moodScore * 2;
+        score += moodScore * 10;
         reasons.push(`今日の気分「${mood.label}」に合うため`);
       }
+
+      score += editorialScore * (moodId ? 3 : 1);
 
       if ((genreScores[item.genre] ?? 0) > 0) {
         score += 4;
@@ -763,7 +827,7 @@ function buildRecommendations(
       }
 
       if (moodId && moodScore === 0) {
-        score -= 100;
+        score -= 1000;
       }
 
       const stableVariation = ((index + 1) * (seed + 3)) % 7;
@@ -904,8 +968,12 @@ export function ReadingShelf() {
         const bScore = itemScoreMap.get(b.id);
         const aMoodScore = selectedMood ? calculateMoodScore(a, selectedMood) : 0;
         const bMoodScore = selectedMood ? calculateMoodScore(b, selectedMood) : 0;
-        const aFinalScore = (aScore?.score ?? 0) + aMoodScore * 2 + (selectedMood && aMoodScore === 0 ? -100 : 0);
-        const bFinalScore = (bScore?.score ?? 0) + bMoodScore * 2 + (selectedMood && bMoodScore === 0 ? -100 : 0);
+        const aFinalScore = selectedMood
+          ? aMoodScore * 10 + calculateEditorialScore(a) * 3 + (aScore?.score ?? 0) + (aMoodScore === 0 ? -1000 : 0)
+          : (aScore?.score ?? 0);
+        const bFinalScore = selectedMood
+          ? bMoodScore * 10 + calculateEditorialScore(b) * 3 + (bScore?.score ?? 0) + (bMoodScore === 0 ? -1000 : 0)
+          : (bScore?.score ?? 0);
 
         if (bFinalScore !== aFinalScore) {
           return bFinalScore - aFinalScore;
@@ -1021,7 +1089,7 @@ export function ReadingShelf() {
     const date = getTodayDateKey();
     const savedShelf = readTodayShelfByMood()[getTodayShelfMoodKey(selectedMood)] ?? null;
 
-    if (savedShelf?.date === date && (savedShelf.moodId ?? null) === selectedMood && hasEnoughSourceDiversity(savedShelf, items, readHistory)) {
+    if (!selectedMood && savedShelf?.date === date && (savedShelf.moodId ?? null) === selectedMood && hasEnoughSourceDiversity(savedShelf, items, readHistory)) {
       setTodayShelf(savedShelf);
       return;
     }
@@ -1077,7 +1145,7 @@ export function ReadingShelf() {
     setTodayShelf(nextShelf);
     saveTodayShelfByMood(moodId, nextShelf);
     setVisibleCount(itemsPerPage);
-    setMoodSwitchMessage(moodId ? `${getMoodOption(moodId)?.label ?? "気分"}の棚に替えました。` : "いつもの棚に戻しました。");
+    setMoodSwitchMessage(moodId ? `${getMoodOption(moodId)?.label ?? "気分"}の棚に切り替えました。` : "いつもの棚に戻しました。");
     window.setTimeout(() => {
       todayShelfRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 80);
@@ -1113,16 +1181,27 @@ export function ReadingShelf() {
       const duplicateCount = collectedItems.length - newItems.length;
 
       if (newItems.length > 0) {
-        setItems((current) => [...newItems, ...current]);
+        const nextItems = [...newItems, ...items];
+        const nextRecommendations = buildRecommendations(nextItems, readHistory, favorites, readLater, recommendationSeed, selectedMood);
+        const nextShelf = createTodayShelf(nextItems, nextRecommendations, readHistory, favorites, readLater, getTodayDateKey(), selectedMood, Date.now() % 100_000);
+
+        setItems(nextItems);
+        setTodayShelf(nextShelf);
+        saveTodayShelfByMood(selectedMood, nextShelf);
         setVisibleCount((current) => Math.max(current, Math.min(itemsPerPage, newItems.length)));
       }
+
+      const sourceCountsText = formatSourceCounts(data.sourceCounts);
+      const missingEditorialSources = (["note", "blog", "hatena"] as const).filter((sourceType) => (data.sourceCounts?.[sourceType] ?? 0) === 0);
+      const missingEditorialMessage =
+        missingEditorialSources.length > 0 ? ` ${missingEditorialSources.join("/")}は取得できませんでした。` : "";
 
       setCollectStatus({
         type: "success",
         message:
           collectedItems.length === 0
             ? "取得できる読み物がありませんでした"
-            : `${newItems.length}件追加しました。重複またはリンク不備のため${duplicateCount}件は追加しませんでした。${data.failedSources?.length ? ` 取得失敗: ${data.failedSources.join("、")}` : ""}`,
+            : `${newItems.length}件追加しました。重複またはリンク不備のため${duplicateCount}件は追加しませんでした。${sourceCountsText ? ` 内訳: ${sourceCountsText}。` : ""}${missingEditorialMessage}${data.failedSourceDetails?.length ? ` 取得失敗: ${data.failedSourceDetails.join(" / ")}` : ""}`,
       });
     } catch (error) {
       setCollectStatus({
